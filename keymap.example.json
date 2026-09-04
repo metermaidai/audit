@@ -1,0 +1,10 @@
+{
+  "_note": "Map provider key/project ids to agents and owners. Anything not listed is reported as UNOWNED spend (detector L02). Copy to keymap.json and fill in.",
+  "anthropic": {
+    "apikey_01AbCdEf": {"agent": "support-triage", "owner": "jane@company.com", "team": "cx"}
+  },
+  "openai": {
+    "key_abc123": {"agent": "pr-reviewer", "owner": "dev@company.com", "team": "platform"},
+    "proj_xyz789": {"agent": "research-agent", "owner": "pm@company.com", "team": "product"}
+  }
+}
