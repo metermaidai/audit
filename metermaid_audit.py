@@ -325,7 +325,7 @@ def analyze(rows: list[Row], hourly: list[Row], rc: RateCard, keymap: dict, days
     by_model = defaultdict(float)
     by_key = defaultdict(lambda: {"cost": 0.0, "requests": 0, "tokens_in": 0, "cache_read": 0,
                                   "cache_write": 0, "tokens_out": 0, "frontier_cost": 0.0,
-                                  "frontier_tokens": 0, "tokens": 0, "provider": "", "batch_req": 0,
+                                  "frontier_tokens": 0, "tokens": 0, "provider": "", "batch_req": 0, "batch_tokens": 0,
                                   "hours": defaultdict(int), "rows": []})
     for r in rows:
         by_provider[r.provider] += r.est_cost
@@ -345,9 +345,10 @@ def analyze(rows: list[Row], hourly: list[Row], rc: RateCard, keymap: dict, days
             k["frontier_tokens"] += tk
         if r.batch:
             k["batch_req"] += r.requests
+            k["batch_tokens"] += tk
         k["rows"].append(r)
     for r in hourly:
-        by_key[(r.provider, r.key_id)]["hours"][r.bucket_start.hour] += r.requests
+        by_key[(r.provider, r.key_id)]["hours"][r.bucket_start.hour] += (r.tokens_in + r.cache_read + r.cache_write + r.tokens_out)
 
     findings: list[Finding] = []
 
@@ -366,13 +367,17 @@ def analyze(rows: list[Row], hourly: list[Row], rc: RateCard, keymap: dict, days
         r0 = k["rows"][0]
         label, owner = key_label(r0, keymap)
         month_cost = k["cost"] * scale
-        if k["requests"] == 0:
+        if k["tokens"] == 0:
             continue
-        avg_out = k["tokens_out"] / k["requests"]
+        in_all = k["tokens_in"] + k["cache_read"] + k["cache_write"]
+        out_ratio = k["tokens_out"] / in_all if in_all else 1.0          # short answers on long prompts => low ratio
+        avg_out = (k["tokens_out"] / k["requests"]) if k["requests"] else None
         frontier_share = k["frontier_tokens"] / k["tokens"] if k["tokens"] else 0
+        month_tokens = k["tokens"] * scale
 
-        # L01 over-tier mix
-        if frontier_share > 0.6 and avg_out < 300 and k["requests"] * scale > 10_000:
+        # L01 over-tier mix: mostly frontier, short outputs relative to input, real volume
+        short = (avg_out is not None and avg_out < 300) or (avg_out is None and out_ratio < 0.08)
+        if frontier_share > 0.6 and short and month_tokens > 20_000_000:
             # reprice frontier traffic at mid-tier reference
             mid = rc.tier_ref("mid")
             fr_rows = [r for r in k["rows"] if r.tier == "frontier"]
@@ -381,13 +386,14 @@ def analyze(rows: list[Row], hourly: list[Row], rc: RateCard, keymap: dict, days
             delta = (k["frontier_cost"] - mid_cost) * 0.5 * scale
             if delta > 100:
                 findings.append(Finding("L01", "Frontier model on short, high-volume traffic", label, delta, 0.6,
-                                        f"{frontier_share:.0%} of tokens on frontier tier; avg output {avg_out:.0f} tokens; "
-                                        f"{k['requests'] * scale:,.0f} req/mo; ${k['frontier_cost'] * scale:,.0f}/mo on frontier",
+                                        f"{frontier_share:.0%} of tokens on frontier tier; "
+                                        + (f"avg output {avg_out:.0f} tokens; " if avg_out is not None else f"output/input ratio {out_ratio:.2f}; ")
+                                        + f"{month_tokens / 1e6:,.0f}M tokens/mo; ${k['frontier_cost'] * scale:,.0f}/mo on frontier",
                                         "Route this task shape to a mid-tier model; validate on a 200-task shadow replay before switching"))
 
         # L05 cache under-use (priced at mid-tier if L01 already fired, to avoid double counting)
-        in_total = k["tokens_in"] + k["cache_read"] + k["cache_write"]
-        if k["requests"] * scale > 1_000 and in_total:
+        in_total = in_all
+        if in_total * scale > 5_000_000 and in_total:
             cache_share = k["cache_read"] / in_total
             if cache_share < 0.2:
                 spec = rc.lookup(r0.model) or {"input": rc.tier_ref(r0.tier)["input"]}
@@ -397,7 +403,7 @@ def analyze(rows: list[Row], hourly: list[Row], rc: RateCard, keymap: dict, days
                 saving = k["tokens_in"] * 0.5 * (inp - inp * 0.1) / 1e6 * scale
                 if saving > 100:
                     findings.append(Finding("L05", "Prompt caching unused or ineffective", label, saving, 0.5,
-                                            f"cache reads are {cache_share:.0%} of input tokens across {k['requests'] * scale:,.0f} req/mo; "
+                                            f"cache reads are {cache_share:.0%} of input tokens; "
                                             f"{k['tokens_in'] * scale / 1e6:,.1f}M uncached input tokens/mo",
                                             "Move the stable system prompt and tool definitions to a cached prefix; assumes ~50% of input is repeated prefix"))
 
@@ -405,15 +411,24 @@ def analyze(rows: list[Row], hourly: list[Row], rc: RateCard, keymap: dict, days
         first = [r for r in k["rows"] if r.bucket_start < r0.bucket_start + timedelta(days=7)]
         last = [r for r in k["rows"] if r.bucket_start >= max(r.bucket_start for r in k["rows"]) - timedelta(days=7)]
         fr, lr = sum(r.requests for r in first), sum(r.requests for r in last)
+        f_in, l_in = sum(r.tokens_in + r.cache_read for r in first), sum(r.tokens_in + r.cache_read for r in last)
+        f_out, l_out = sum(r.tokens_out for r in first), sum(r.tokens_out for r in last)
         if fr > 200 and lr > 200:
-            f_tpr = sum(r.tokens_in + r.cache_read for r in first) / fr
-            l_tpr = sum(r.tokens_in + r.cache_read for r in last) / lr
-            if l_tpr > f_tpr * 1.25 and 0.8 <= lr / fr <= 1.25:
+            f_tpr, l_tpr, ratio_ok = f_in / fr, l_in / lr, 0.8 <= lr / fr <= 1.25
+        elif f_out > 200_000 and l_out > 200_000:
+            # no request counts: use input-per-output-token as the shape proxy, output volume as the volume proxy
+            f_tpr, l_tpr, ratio_ok = f_in / f_out, l_in / l_out, 0.8 <= l_out / f_out <= 1.25
+        else:
+            f_tpr = l_tpr = 0; ratio_ok = False
+        if f_tpr and l_tpr > f_tpr * 1.25 and ratio_ok:
+            if True:
                 spec = rc.lookup(r0.model) or {"input": rc.tier_ref(r0.tier)["input"]}
-                excess = (l_tpr - f_tpr) * lr * (30 / 7) * spec["input"] / 1e6
+                base = lr if fr > 200 else l_out
+                excess = (l_tpr - f_tpr) * base * (30 / 7) * spec["input"] / 1e6
                 if excess > 100:
-                    findings.append(Finding("L06", "Input tokens per request growing", label, excess, 0.6,
-                                            f"{f_tpr:,.0f} → {l_tpr:,.0f} input tokens/request over the window with flat request volume",
+                    unit = "input tokens/request" if fr > 200 else "input tokens per output token"
+                    findings.append(Finding("L06", "Input context growing with flat volume", label, excess, 0.6,
+                                            f"{f_tpr:,.1f} → {l_tpr:,.1f} {unit}, first vs last 7 days",
                                             "Trim accumulated context; truncate or summarize tool output; check for history not being compacted"))
 
         # L07 velocity anomaly (daily spend)
@@ -433,15 +448,16 @@ def analyze(rows: list[Row], hourly: list[Row], rc: RateCard, keymap: dict, days
         # L10 batch-eligible (hour-of-day from the hourly sample)
         hours = k["hours"]
         hourly_total = sum(hours.values())
-        if hourly_total and k["requests"] * scale > 5_000 and k["batch_req"] / k["requests"] < 0.2:
+        batch_share = (k["batch_req"] / k["requests"]) if k["requests"] else (k["batch_tokens"] / k["tokens"])
+        if hourly_total and month_tokens > 20_000_000 and batch_share < 0.2:
             best = 0
             for h in range(24):
                 best = max(best, hours[h] + hours[(h + 1) % 24])
             if best / hourly_total > 0.8:
-                saving = month_cost * (1 - k["batch_req"] / k["requests"]) * 0.5
+                saving = month_cost * (1 - batch_share) * 0.5
                 if saving > 100:
                     findings.append(Finding("L10", "Nightly/bursty workload not on batch pricing", label, saving, 0.7,
-                                            f"{best / hourly_total:.0%} of requests land in a 2-hour daily window (last 7 days); batch share {k['batch_req'] / k['requests']:.0%}",
+                                            f"{best / hourly_total:.0%} of tokens land in a 2-hour daily window (last 7 days); batch share {batch_share:.0%}",
                                             "Move to the Batch API (50% discount) if 24h turnaround is acceptable"))
 
     findings.sort(key=lambda f: f.monthly_waste, reverse=True)
@@ -456,7 +472,7 @@ def analyze(rows: list[Row], hourly: list[Row], rc: RateCard, keymap: dict, days
         "by_model_monthly": dict(sorted(((m, c * scale) for m, c in by_model.items()), key=lambda x: -x[1])),
         "top_keys_monthly": [
             {"key": f"{p}:{kid}", "label": key_label(k["rows"][0], keymap)[0], "owner": key_label(k["rows"][0], keymap)[1],
-             "monthly_cost": k["cost"] * scale, "requests_monthly": k["requests"] * scale,
+             "monthly_cost": k["cost"] * scale, "requests_monthly": k["requests"] * scale, "tokens_monthly": k["tokens"] * scale,
              "frontier_share": (k["frontier_tokens"] / k["tokens"]) if k["tokens"] else 0}
             for (p, kid), k in top_keys],
         "unowned_monthly": unowned * scale,
@@ -494,10 +510,11 @@ def write_report(res: dict, invoiced: dict[str, float], out: Path):
     for mdl, c in list(m["by_model_monthly"].items())[:12]:
         lines.append(f"- {mdl}: ${c:,.0f}/month")
     lines.append("\n## Top keys / agents\n")
-    lines.append("| agent / key | owner | $/month | req/month | frontier share |")
-    lines.append("|---|---|---:|---:|---:|")
+    lines.append("| agent / key | owner | $/month | M tokens/month | req/month | frontier share |")
+    lines.append("|---|---|---:|---:|---:|---:|")
     for k in m["top_keys_monthly"]:
-        lines.append(f"| {k['label']} | {k['owner'] or '—'} | ${k['monthly_cost']:,.0f} | {k['requests_monthly']:,.0f} | {k['frontier_share']:.0%} |")
+        req = f"{k['requests_monthly']:,.0f}" if k["requests_monthly"] else "n/a"
+        lines.append(f"| {k['label']} | {k['owner'] or '—'} | ${k['monthly_cost']:,.0f} | {k['tokens_monthly'] / 1e6:,.1f} | {req} | {k['frontier_share']:.0%} |")
     lines.append("\n## Findings, ranked by dollars\n")
     if not m["findings"]:
         lines.append("No findings above threshold. Either this is a clean estate or the window is too short.")
