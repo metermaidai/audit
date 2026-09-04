@@ -122,8 +122,10 @@ def _get(url, headers, params, retries=5):
             continue
         if resp.status_code >= 400:
             raise RuntimeError(f"{url} -> {resp.status_code}: {resp.text[:400]}")
-        print(f"  {name}: page ok", file=sys.stderr)
-        return resp.json()
+        data = resp.json()
+        n = sum(len(b.get("results", [])) for b in data.get("data", []))
+        print(f"  {name}: page ok, {len(data.get('data', []))} buckets, {n} rows, more={bool(data.get('has_more'))}", file=sys.stderr)
+        return data
     raise RuntimeError(f"{url}: gave up after {retries} retries")
 
 
@@ -313,7 +315,7 @@ def key_label(r: Row, keymap: dict) -> tuple[str, str]:
     return f"{r.provider}:{r.key_id}", ""
 
 
-def analyze(rows: list[Row], hourly: list[Row], rc: RateCard, keymap: dict, days: int) -> dict:
+def analyze(rows: list[Row], hourly: list[Row], rc: RateCard, keymap: dict, days: float) -> dict:
     scale = 30.0 / max(days, 1)
     for r in rows:
         r.est_cost, r.tier = rc.price(r)
@@ -476,7 +478,7 @@ def write_report(res: dict, invoiced: dict[str, float], out: Path):
     m = res
     lines = []
     lines.append("# metermaid audit\n")
-    lines.append(f"Window: last {m['window_days']} days, normalized to 30. Estimated from provider usage APIs and a local rate card; reconcile against invoices.\n")
+    lines.append(f"Window: {m.get('window_start','')[:10]} to {m.get('window_end','')[:10]} ({m['window_days']:.0f} days of data; {m.get('days_requested', m['window_days'])} requested), normalized to 30. Estimated from provider usage APIs and a local rate card; reconcile against invoices.\n")
     lines.append("## The number\n")
     lines.append(f"- Estimated spend: **${m['estimated_spend_monthly']:,.0f}/month**")
     inv_total = sum(invoiced.values())
@@ -572,7 +574,14 @@ def main():
             invoiced["openai"] = fetch_openai_cost(okey, start, end)
     if not rows:
         sys.exit("No usage rows returned for the window.")
-    res = analyze(rows, hourly, rc, keymap, args.days)
+    lo = min(r.bucket_start for r in rows)
+    hi = max(r.bucket_start + timedelta(hours=r.bucket_hours) for r in rows)
+    actual_days = max((hi - lo).total_seconds() / 86400.0, 1.0)
+    print(f"Data window: {lo:%Y-%m-%d} to {hi:%Y-%m-%d} ({actual_days:.0f} days; asked for {args.days})", file=sys.stderr)
+    if actual_days < args.days * 0.9:
+        print("  fewer days than requested: provider history limit or pagination stopped early", file=sys.stderr)
+    res = analyze(rows, hourly, rc, keymap, actual_days)
+    res["window_start"], res["window_end"], res["days_requested"] = lo.isoformat(), hi.isoformat(), args.days
     write_report(res, invoiced, Path(args.out))
 
 
