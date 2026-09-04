@@ -108,24 +108,33 @@ def _iso(dt: datetime) -> str:
 
 
 def _get(url, headers, params, retries=5):
+    name = url.rsplit("/", 1)[-1]
     for attempt in range(retries):
-        resp = requests.get(url, headers=headers, params=params, timeout=60)
+        try:
+            resp = requests.get(url, headers=headers, params=params, timeout=(10, 45))
+        except (requests.Timeout, requests.ConnectionError) as e:
+            print(f"  {name}: {type(e).__name__}, retrying ({attempt + 1}/{retries})", file=sys.stderr)
+            time.sleep(min(2 ** attempt, 20))
+            continue
         if resp.status_code == 429 or resp.status_code >= 500:
+            print(f"  {name}: HTTP {resp.status_code}, retrying ({attempt + 1}/{retries})", file=sys.stderr)
             time.sleep(min(2 ** attempt, 20))
             continue
         if resp.status_code >= 400:
             raise RuntimeError(f"{url} -> {resp.status_code}: {resp.text[:400]}")
+        print(f"  {name}: page ok", file=sys.stderr)
         return resp.json()
     raise RuntimeError(f"{url}: gave up after {retries} retries")
 
 
-def fetch_anthropic(admin_key: str, start: datetime, end: datetime) -> tuple[list[Row], float]:
-    """Usage report (hourly) + cost report (daily) from the Anthropic Admin API."""
+def fetch_anthropic_usage(admin_key: str, start: datetime, end: datetime, width: str) -> list[Row]:
+    """Usage report from the Anthropic Admin API. width: '1d' or '1h'."""
     headers = {"x-api-key": admin_key, "anthropic-version": "2023-06-01"}
     rows: list[Row] = []
     params = {
-        "starting_at": _iso(start), "ending_at": _iso(end), "bucket_width": "1h",
-        "group_by[]": ["api_key_id", "workspace_id", "model", "service_tier"], "limit": 168,
+        "starting_at": _iso(start), "ending_at": _iso(end), "bucket_width": width,
+        "group_by[]": ["api_key_id", "workspace_id", "model", "service_tier"],
+        "limit": 31 if width == "1d" else 168,
     }
     page = None
     while True:
@@ -143,7 +152,7 @@ def fetch_anthropic(admin_key: str, start: datetime, end: datetime) -> tuple[lis
                     key_id=res.get("api_key_id") or "unknown-key",
                     scope_id=res.get("workspace_id") or "default",
                     model=res.get("model") or "unknown",
-                    bucket_start=bs, bucket_hours=1.0,
+                    bucket_start=bs, bucket_hours=24.0 if width == "1d" else 1.0,
                     requests=int(res.get("request_count") or res.get("requests") or 0),
                     tokens_in=int(res.get("uncached_input_tokens") or 0),
                     cache_read=int(res.get("cache_read_input_tokens") or 0),
@@ -155,7 +164,11 @@ def fetch_anthropic(admin_key: str, start: datetime, end: datetime) -> tuple[lis
             page = data["next_page"]
         else:
             break
+    return rows
 
+
+def fetch_anthropic_cost(admin_key: str, start: datetime, end: datetime) -> float:
+    headers = {"x-api-key": admin_key, "anthropic-version": "2023-06-01"}
     invoiced = 0.0
     p = {"starting_at": _iso(start.replace(hour=0, minute=0, second=0)), "ending_at": _iso(end),
          "bucket_width": "1d", "group_by[]": ["workspace_id"], "limit": 31}
@@ -176,16 +189,17 @@ def fetch_anthropic(admin_key: str, start: datetime, end: datetime) -> tuple[lis
             page = data["next_page"]
         else:
             break
-    return rows, invoiced
+    return invoiced
 
 
-def fetch_openai(admin_key: str, start: datetime, end: datetime) -> tuple[list[Row], float]:
-    """Completions usage (hourly) + costs (daily) from the OpenAI Admin API."""
+def fetch_openai_usage(admin_key: str, start: datetime, end: datetime, width: str) -> list[Row]:
+    """Completions usage from the OpenAI Admin API. width: '1d' or '1h'."""
     headers = {"Authorization": f"Bearer {admin_key}"}
     rows: list[Row] = []
     params = {
         "start_time": int(start.timestamp()), "end_time": int(end.timestamp()),
-        "bucket_width": "1h", "group_by": ["model", "project_id", "api_key_id", "batch"], "limit": 168,
+        "bucket_width": width, "group_by": ["model", "project_id", "api_key_id", "batch"],
+        "limit": 31 if width == "1d" else 168,
     }
     page = None
     while True:
@@ -202,7 +216,7 @@ def fetch_openai(admin_key: str, start: datetime, end: datetime) -> tuple[list[R
                     key_id=res.get("api_key_id") or res.get("project_id") or "unknown-key",
                     scope_id=res.get("project_id") or "default",
                     model=res.get("model") or "unknown",
-                    bucket_start=bs, bucket_hours=1.0,
+                    bucket_start=bs, bucket_hours=24.0 if width == "1d" else 1.0,
                     requests=int(res.get("num_model_requests") or 0),
                     tokens_in=max(int(res.get("input_tokens") or 0) - cached, 0),
                     cache_read=cached, cache_write=0,
@@ -213,7 +227,11 @@ def fetch_openai(admin_key: str, start: datetime, end: datetime) -> tuple[list[R
             page = data["next_page"]
         else:
             break
+    return rows
 
+
+def fetch_openai_cost(admin_key: str, start: datetime, end: datetime) -> float:
+    headers = {"Authorization": f"Bearer {admin_key}"}
     invoiced = 0.0
     p = {"start_time": int(start.timestamp()), "end_time": int(end.timestamp()),
          "bucket_width": "1d", "group_by": ["project_id"], "limit": 31}
@@ -233,7 +251,7 @@ def fetch_openai(admin_key: str, start: datetime, end: datetime) -> tuple[list[R
             page = data["next_page"]
         else:
             break
-    return rows, invoiced
+    return invoiced
 
 
 # ---------------------------------------------------------------------------
@@ -295,7 +313,7 @@ def key_label(r: Row, keymap: dict) -> tuple[str, str]:
     return f"{r.provider}:{r.key_id}", ""
 
 
-def analyze(rows: list[Row], rc: RateCard, keymap: dict, days: int) -> dict:
+def analyze(rows: list[Row], hourly: list[Row], rc: RateCard, keymap: dict, days: int) -> dict:
     scale = 30.0 / max(days, 1)
     for r in rows:
         r.est_cost, r.tier = rc.price(r)
@@ -325,8 +343,9 @@ def analyze(rows: list[Row], rc: RateCard, keymap: dict, days: int) -> dict:
             k["frontier_tokens"] += tk
         if r.batch:
             k["batch_req"] += r.requests
-        k["hours"][r.bucket_start.hour] += r.requests
         k["rows"].append(r)
+    for r in hourly:
+        by_key[(r.provider, r.key_id)]["hours"][r.bucket_start.hour] += r.requests
 
     findings: list[Finding] = []
 
@@ -409,17 +428,18 @@ def analyze(rows: list[Row], rc: RateCard, keymap: dict, days: int) -> dict:
                                         f"{len(spikes)} day(s) above mean+3σ; largest ${max(v for _, v in spikes):,.0f} vs typical ${mu:,.0f}/day",
                                         "Set a daily budget alert on this key; add a rate limit or circuit breaker at the gateway"))
 
-        # L10 batch-eligible
+        # L10 batch-eligible (hour-of-day from the hourly sample)
         hours = k["hours"]
-        if k["requests"] * scale > 5_000 and k["batch_req"] / k["requests"] < 0.2:
+        hourly_total = sum(hours.values())
+        if hourly_total and k["requests"] * scale > 5_000 and k["batch_req"] / k["requests"] < 0.2:
             best = 0
             for h in range(24):
                 best = max(best, hours[h] + hours[(h + 1) % 24])
-            if best / k["requests"] > 0.8:
+            if best / hourly_total > 0.8:
                 saving = month_cost * (1 - k["batch_req"] / k["requests"]) * 0.5
                 if saving > 100:
                     findings.append(Finding("L10", "Nightly/bursty workload not on batch pricing", label, saving, 0.7,
-                                            f"{best / k['requests']:.0%} of requests land in a 2-hour daily window; batch share {k['batch_req'] / k['requests']:.0%}",
+                                            f"{best / hourly_total:.0%} of requests land in a 2-hour daily window (last 7 days); batch share {k['batch_req'] / k['requests']:.0%}",
                                             "Move to the Batch API (50% discount) if 24h turnaround is acceptable"))
 
     findings.sort(key=lambda f: f.monthly_waste, reverse=True)
@@ -513,9 +533,21 @@ def main():
     start = end - timedelta(days=args.days)
 
     rows: list[Row] = []
+    hourly: list[Row] = []
     invoiced: dict[str, float] = {}
+    h_start = end - timedelta(days=min(7, args.days))
     if args.demo:
-        rows, invoiced = demo_rows(start, args.days)
+        hourly, invoiced = demo_rows(start, args.days)
+        # roll the synthetic hourly rows up to daily for the main set
+        daily = {}
+        for r in hourly:
+            key = (r.provider, r.key_id, r.scope_id, r.model, r.bucket_start.date(), r.batch)
+            d = daily.setdefault(key, Row(r.provider, r.key_id, r.scope_id, r.model,
+                                          r.bucket_start.replace(hour=0), 24.0, 0, 0, 0, 0, 0, r.batch))
+            d.requests += r.requests; d.tokens_in += r.tokens_in; d.cache_read += r.cache_read
+            d.cache_write += r.cache_write; d.tokens_out += r.tokens_out
+        rows = list(daily.values())
+        hourly = [r for r in hourly if r.bucket_start >= h_start]
         keymap = {"anthropic": {"apikey_support": {"agent": "support-triage", "owner": "jane@demo"},
                                 "apikey_pr": {"agent": "pr-reviewer", "owner": "dev@demo"}},
                   "openai": {"key_research": {"agent": "research-agent", "owner": "pm@demo"}}}
@@ -525,18 +557,22 @@ def main():
         if not (akey or okey):
             sys.exit("Set ANTHROPIC_ADMIN_KEY and/or OPENAI_ADMIN_KEY, or run with --demo")
         if akey:
-            print("Pulling Anthropic usage and cost…", file=sys.stderr)
-            r, inv = fetch_anthropic(akey, start, end)
-            rows += r
-            invoiced["anthropic"] = inv
+            print(f"Anthropic: daily usage, {args.days} days", file=sys.stderr)
+            rows += fetch_anthropic_usage(akey, start, end, "1d")
+            print("Anthropic: hourly usage, last 7 days", file=sys.stderr)
+            hourly += fetch_anthropic_usage(akey, h_start, end, "1h")
+            print("Anthropic: cost report", file=sys.stderr)
+            invoiced["anthropic"] = fetch_anthropic_cost(akey, start, end)
         if okey:
-            print("Pulling OpenAI usage and costs…", file=sys.stderr)
-            r, inv = fetch_openai(okey, start, end)
-            rows += r
-            invoiced["openai"] = inv
+            print(f"OpenAI: daily usage, {args.days} days", file=sys.stderr)
+            rows += fetch_openai_usage(okey, start, end, "1d")
+            print("OpenAI: hourly usage, last 7 days", file=sys.stderr)
+            hourly += fetch_openai_usage(okey, h_start, end, "1h")
+            print("OpenAI: costs", file=sys.stderr)
+            invoiced["openai"] = fetch_openai_cost(okey, start, end)
     if not rows:
         sys.exit("No usage rows returned for the window.")
-    res = analyze(rows, rc, keymap, args.days)
+    res = analyze(rows, hourly, rc, keymap, args.days)
     write_report(res, invoiced, Path(args.out))
 
 
