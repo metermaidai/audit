@@ -452,7 +452,7 @@ def analyze(rows: list[Row], rc: RateCard, keymap: dict, days: int) -> dict:
 # ---------------------------------------------------------------------------
 def write_report(res: dict, invoiced: dict[str, float], out: Path):
     out.mkdir(parents=True, exist_ok=True)
-    (out / "audit.json").write_text(json.dumps({"result": res, "invoiced": invoiced}, indent=2, default=str))
+    (out / "audit.json").write_text(json.dumps({"result": res, "invoiced": invoiced}, indent=2, default=str), encoding="utf-8")
     m = res
     lines = []
     lines.append("# metermaid audit\n")
@@ -490,13 +490,15 @@ def write_report(res: dict, invoiced: dict[str, float], out: Path):
         for u in m["unknown_models"]:
             lines.append(f"- {u}")
     lines.append("\n---\nGenerated locally by metermaid audit (Phase 0). Keys were not transmitted anywhere.")
-    (out / "audit.md").write_text("\n".join(lines))
+    (out / "audit.md").write_text("\n".join(lines), encoding="utf-8")
     print("\n".join(lines))
     print(f"\nWrote {out / 'audit.md'} and {out / 'audit.json'}")
 
 
 # ---------------------------------------------------------------------------
 def main():
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
     ap = argparse.ArgumentParser(description="metermaid audit — Phase 0")
     ap.add_argument("--days", type=int, default=30)
     ap.add_argument("--out", default="./audit")
