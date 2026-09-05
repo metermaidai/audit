@@ -544,6 +544,7 @@ def main():
     ap.add_argument("--ratecard", default=str(HERE / "ratecard.json"))
     ap.add_argument("--keymap", default=str(HERE / "keymap.json"))
     ap.add_argument("--demo", action="store_true", help="synthetic data; no API keys needed")
+    ap.add_argument("--anon", action="store_true", help="hash key/workspace/project ids and drop owner emails so the audit is safe to share")
     args = ap.parse_args()
 
     rc = RateCard(Path(args.ratecard))
@@ -591,6 +592,17 @@ def main():
             invoiced["openai"] = fetch_openai_cost(okey, start, end)
     if not rows:
         sys.exit("No usage rows returned for the window.")
+    if args.anon:
+        import hashlib, secrets
+        salt = secrets.token_hex(8)
+        h = lambda v: v[:4] + "_" + hashlib.sha256((salt + v).encode()).hexdigest()[:8]
+        anon_map = {}
+        for r in rows + hourly:
+            r.key_id, r.scope_id = h(r.key_id), h(r.scope_id)
+        for prov, m in list(keymap.items()):
+            if isinstance(m, dict):
+                keymap[prov] = {h(k): {"agent": v.get("agent", "agent"), "owner": "owner" if v.get("owner") else "", "team": v.get("team", "")}
+                                for k, v in m.items() if isinstance(v, dict)}
     lo = min(r.bucket_start for r in rows)
     hi = max(r.bucket_start + timedelta(hours=r.bucket_hours) for r in rows)
     actual_days = max((hi - lo).total_seconds() / 86400.0, 1.0)
