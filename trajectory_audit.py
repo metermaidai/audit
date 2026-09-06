@@ -38,6 +38,9 @@ ERROR_MARKERS = ("Traceback", "Error:", "error:", "ERROR", "not found", "No such
                  "command not found", "SyntaxError", "failed", "FAILED", "Permission denied",
                  "Exception", "exit code 1", "returned non-zero")
 SUBMIT_MARKERS = ("submit", "finish", "AgentFinishAction", "task_complete", "final_answer")
+STATE_CHANGE = re.compile(r"(str_replace|\bedit\b|\bcreate\b|\bwrite\b|\binsert\b|\bappend\b|\brm\b|\bmv\b|\bcp\b|sed -i|"
+                          r"\btouch\b|\bmkdir\b|\bpatch\b|pip install|npm install|git (apply|checkout|stash|reset|commit)|"
+                          r"\becho\b[^|]*>|\bcat\b[^|]*>|new_str|file_text|\"command\": \"(create|str_replace|insert)\")", re.I)
 
 
 @dataclass
@@ -59,6 +62,7 @@ class Traj:
     api_calls: int | None = None
     exit_status: str | None = None
     cost_source: str = "none"          # reported | tokens | chars
+    resolved: bool | None = None       # task outcome when the dataset carries it
 
 
 # ---------------------------------------------------------------------------
@@ -95,18 +99,41 @@ def parse_messages(msgs: list, tid: str, sub: str, info: dict | None, fmt: str) 
     for m in msgs:
         if not isinstance(m, dict):
             continue
-        role = m.get("role")
+        role = str(m.get("role") or "").lower()
+        role = {"ai": "assistant", "agent": "assistant", "model": "assistant", "human": "user",
+                "tool_result": "tool", "function": "tool", "environment": "tool", "env": "tool"}.get(role, role)
         content = m.get("content")
-        if isinstance(content, list):  # tool-use blocks etc.
-            content = " ".join(str(c.get("text") or c.get("input") or c.get("content") or "") if isinstance(c, dict) else str(c) for c in content)
+        if content is None:
+            content = m.get("text") if m.get("text") is not None else m.get("message")
+        tool_uses = []
+        tool_results = []
+        if isinstance(content, list):  # Anthropic-style blocks
+            texts = []
+            for c in content:
+                if not isinstance(c, dict):
+                    texts.append(str(c)); continue
+                ct = c.get("type")
+                if ct == "tool_use":
+                    tool_uses.append({"name": c.get("name"), "input": c.get("input")})
+                elif ct == "tool_result":
+                    rc = c.get("content")
+                    if isinstance(rc, list):
+                        rc = " ".join(str(x.get("text", "")) if isinstance(x, dict) else str(x) for x in rc)
+                    tool_results.append(str(rc or ""))
+                else:
+                    texts.append(str(c.get("text") or c.get("content") or ""))
+            content = " ".join(texts + tool_results)
         content = str(content or "")
+        if tool_results and role == "user":
+            role = "tool"
         if role == "assistant":
             if pending is not None:
                 steps.append(Step(pending, "", 0))
-            # tool calls, if structured
             tcs = m.get("tool_calls")
-            if tcs:
-                pending = json.dumps([tc.get("function", tc) for tc in tcs], sort_keys=True)
+            if tool_uses:
+                pending = json.dumps(tool_uses, sort_keys=True, default=str)
+            elif tcs:
+                pending = json.dumps([tc.get("function", tc) for tc in tcs], sort_keys=True, default=str)
             else:
                 pending = extract_action(content)
         elif role in ("user", "tool") and pending is not None:
@@ -168,16 +195,26 @@ def parse_openhands(d: dict, tid: str, sub: str) -> Traj | None:
 def parse_any(obj: dict, tid: str, sub: str) -> Traj | None:
     if not isinstance(obj, dict):
         return None
-    t = parse_sweagent(obj, tid, sub)
-    if t:
-        return t
-    t = parse_openhands(obj, tid, sub)
-    if t:
-        return t
-    for key, fmt in (("messages", "messages"), ("history", "messages"), ("steps", "messages"), ("trajectory", "messages")):
-        if isinstance(obj.get(key), list) and obj[key] and isinstance(obj[key][0], dict) and "role" in obj[key][0]:
-            return parse_messages(obj[key], tid, sub, obj.get("info"), fmt)
-    return None
+    t = parse_sweagent(obj, tid, sub) or parse_openhands(obj, tid, sub)
+    if not t:
+        for key, fmt in (("messages", "messages"), ("history", "messages"), ("steps", "messages"), ("trajectory", "messages")):
+            if isinstance(obj.get(key), list) and obj[key] and isinstance(obj[key][0], dict) and "role" in obj[key][0]:
+                t = parse_messages(obj[key], tid, sub, obj.get("info"), fmt)
+                break
+    if not t:
+        return None
+    model = obj.get("model_name") or obj.get("model")
+    if model:
+        t.submission = f"{sub}/{str(model).split('/')[-1][:40]}"
+    for key in ("target", "resolved", "success"):
+        v = obj.get(key)
+        if isinstance(v, bool):
+            t.resolved = v
+            break
+        if isinstance(v, (int, float)) and v in (0, 1):
+            t.resolved = bool(v)
+            break
+    return t
 
 
 def load_path(path: Path, sub: str, unparsed: list[str]) -> list[Traj]:
@@ -265,21 +302,25 @@ def detect(t: Traj, big_obs_chars: int) -> list[Hit]:
         return hits
     step_cost = (t.cost or 0) / n
 
-    # T01 identical action repeated >= 3 times
-    counts = Counter(norm(s.action) for s in t.steps if s.action.strip())
-    seen = Counter()
+    # T01 degenerate loop: identical action repeated with no state-changing action in between.
+    # Chain length resets whenever an edit/write/install happens, so edit->test->edit->test is not a loop.
+    chain = Counter()          # action -> repeats since last state change
     loop_idx = set()
+    worst_a, worst_n = "", 0
     for i, s in enumerate(t.steps):
         a = norm(s.action)
         if not a:
             continue
-        seen[a] += 1
-        if counts[a] >= 3 and seen[a] > 2:
+        if STATE_CHANGE.search(a):
+            chain.clear()
+        chain[a] += 1
+        if chain[a] >= 3:          # third+ identical call with nothing changed
             loop_idx.add(i)
+        if chain[a] > worst_n:
+            worst_a, worst_n = a, chain[a]
     if loop_idx:
-        worst = counts.most_common(1)[0]
         hits.append(Hit("T01 tool loop", t.id, t.submission, len(loop_idx), len(loop_idx) * step_cost,
-                        f"'{worst[0][:60]}' ×{worst[1]}", loop_idx))
+                        f"'{worst_a[:60]}' ×{worst_n} with no state change between", loop_idx))
 
     # T02 identical retry immediately after an error observation
     retry_idx = set()
@@ -299,16 +340,21 @@ def detect(t: Traj, big_obs_chars: int) -> list[Hit]:
         hits.append(Hit("T03 context bloat", t.id, t.submission, len(big), excess_tokens * blended_in,
                         f"{len(big)} observation(s) over {big_obs_chars:,} chars; largest {max(ln for _, ln in big):,}"))
 
-    # T06 abandoned / non-terminal
-    submitted = (t.exit_status or "").lower() in ("submitted", "success", "finished", "done") or \
-                any(m in norm(t.steps[-1].action).lower() for m in SUBMIT_MARKERS)
-    if not submitted:
+    # T06 abandoned / T07 context exhausted (agent hit the context wall; harness may have force-submitted)
+    ex = (t.exit_status or "").lower()
+    clean_submit = ex in ("submitted", "success", "finished", "done") or \
+                   (not ex and any(m in norm(t.steps[-1].action).lower() for m in SUBMIT_MARKERS))
+    if "exit_context" in ex or "context" in ex:
+        hits.append(Hit("T07 context exhausted", t.id, t.submission, n, t.cost or 0,
+                        f"exit={t.exit_status}" + (" (forced submit)" if "submitted" in ex else " (no submit)"), set(range(n))))
+    elif not clean_submit:
         hits.append(Hit("T06 abandoned", t.id, t.submission, n, t.cost or 0, f"exit={t.exit_status or 'unknown'}, no submit action", set(range(n))))
 
     # T13 edit thrash: same file edited many times
     files = Counter()
     for s in t.steps:
-        m = re.search(r"(?:edit|str_replace_editor|open|create)[:\s]+([\w./\-]+\.\w+)", s.action)
+        m = re.search(r"(?:edit|str_replace_editor|open|create)[:\s]+([\w./\-]+\.\w+)", s.action) or \
+            re.search(r'"path":\s*"([^"]+\.\w+)"', s.action)
         if m:
             files[m.group(1)] += 1
     thrash = {f for f, c in files.items() if c >= 6}
@@ -343,25 +389,38 @@ def summarize(trajs: list[Traj], hits: list[Hit]) -> dict:
         hs = hits_by_sub[sub]
         total = sum(costs)
         # de-duplicate: union of wasted step indices × step cost, plus non-step costs (T03), capped at run cost
-        waste = 0.0
+        waste = 0.0        # mechanical: T01 T02 T03 T13
+        sunk = 0.0         # runs that ended without a real result: T06 T07
         hs_by_traj = defaultdict(list)
         for h in hs:
             hs_by_traj[h.traj_id].append(h)
+        SUNK = ("T06", "T07")
         for t in ts:
             th = hs_by_traj.get(t.id, [])
             if not th:
                 continue
-            idx = set().union(*[h.idx for h in th]) if th else set()
+            mech = [h for h in th if not h.detector.startswith(SUNK)]
+            idx = set().union(*[h.idx for h in mech]) if mech else set()
             step_cost = (t.cost or 0) / max(len(t.steps), 1)
-            extra = sum(h.wasted_cost for h in th if not h.idx)
+            extra = sum(h.wasted_cost for h in mech if not h.idx)
             waste += min(len(idx) * step_cost + extra, t.cost or 0)
+            if any(h.detector.startswith(SUNK) for h in th):
+                sunk += (t.cost or 0)
         p90 = sorted(steps)[int(0.9 * (len(steps) - 1))] if steps else 0
         outliers = [t for t in ts if len(t.steps) > 2 * p90] if p90 else []
         det = defaultdict(lambda: {"trajs": 0, "cost": 0.0})
         for h in hs:
             det[h.detector]["trajs"] += 1
             det[h.detector]["cost"] += h.wasted_cost
+        with_res = [t for t in ts if t.resolved is not None]
+        flagged = {h.traj_id for h in hs}
+        res_all = (sum(t.resolved for t in with_res) / len(with_res)) if with_res else None
+        res_flag = [t.resolved for t in with_res if t.id in flagged]
+        res_clean = [t.resolved for t in with_res if t.id not in flagged]
         subs[sub] = {
+            "resolve_rate": res_all,
+            "resolve_rate_with_findings": (sum(res_flag) / len(res_flag)) if res_flag else None,
+            "resolve_rate_without_findings": (sum(res_clean) / len(res_clean)) if res_clean else None,
             "trajectories": len(ts),
             "cost_source": Counter(t.cost_source for t in ts).most_common(1)[0][0],
             "total_cost": total, "mean_cost": statistics.mean(costs) if costs else 0,
@@ -370,13 +429,15 @@ def summarize(trajs: list[Traj], hits: list[Hit]) -> dict:
             "runs_over_2x_p90_steps": len(outliers),
             "trajs_with_any_finding": len({h.traj_id for h in hs}),
             "waste_cost": waste, "waste_share": (waste / total) if total else 0,
+            "sunk_cost": sunk, "sunk_share": (sunk / total) if total else 0,
             "by_detector": {k: {"trajs": v["trajs"], "share_of_trajs": v["trajs"] / len(ts), "cost": v["cost"]} for k, v in sorted(det.items())},
             "worst": [{k: v for k, v in asdict(h).items() if k != "idx"} for h in sorted(hs, key=lambda h: -h.wasted_cost)[:5]],
         }
     total = sum(s["total_cost"] for s in subs.values())
     waste = sum(s["waste_cost"] for s in subs.values())
+    sunk = sum(s["sunk_cost"] for s in subs.values())
     return {"submissions": subs, "trajectories": len(trajs), "total_cost": total, "waste_cost": waste,
-            "waste_share": (waste / total) if total else 0}
+            "waste_share": (waste / total) if total else 0, "sunk_cost": sunk, "sunk_share": (sunk / total) if total else 0}
 
 
 def write(res: dict, unparsed: list[str], out: Path):
@@ -384,20 +445,28 @@ def write(res: dict, unparsed: list[str], out: Path):
     (out / "trajectory-audit.json").write_text(json.dumps(res, indent=2), encoding="utf-8")
     L = ["# metermaid trajectory audit\n",
          f"{res['trajectories']:,} trajectories across {len(res['submissions'])} submission(s). "
-         f"Total cost ${res['total_cost']:,.2f}; mechanical waste ${res['waste_cost']:,.2f} ({res['waste_share']:.0%}).\n",
-         "Waste = steps spent in identical-action loops, identical retries after errors, oversized tool output dragged through context, "
-         "abandoned runs, and edit thrash. Priced from each trajectory's own reported cost where present. "
-         "Totals de-duplicate overlapping detectors and never exceed a run's cost; per-detector lines can overlap.\n",
-         "| submission | trajs | cost basis | total $ | median $/run | mean steps | any finding | waste $ | waste % |",
+         f"Total cost ${res['total_cost']:,.2f}. Mechanical waste ${res['waste_cost']:,.2f} ({res['waste_share']:.0%}) — "
+         f"steps spent in identical-action loops, identical retries after errors, oversized tool output dragged through context, and edit thrash. "
+         f"Separately, ${res['sunk_cost']:,.2f} ({res['sunk_share']:.0%}) was spent on runs that ended without a real result "
+         f"(abandoned, or hit the context limit).\n",
+         "Priced from each trajectory's own reported cost where present, else from tokens/chars at the --price defaults. "
+         "Mechanical totals de-duplicate overlapping detectors and never exceed a run's cost; per-detector lines can overlap.\n",
+         "| submission | trajs | cost basis | total $ | median $/run | mean steps | any finding | mechanical waste % | failed-run cost % |",
          "|---|---:|---|---:|---:|---:|---:|---:|---:|"]
     for sub, s in sorted(res["submissions"].items(), key=lambda kv: -kv[1]["waste_cost"]):
         L.append(f"| {sub} | {s['trajectories']} | {s['cost_source']} | {s['total_cost']:,.2f} | {s['median_cost']:,.3f} | "
-                 f"{s['mean_steps']:.0f} | {s['trajs_with_any_finding'] / s['trajectories']:.0%} | {s['waste_cost']:,.2f} | {s['waste_share']:.0%} |")
+                 f"{s['mean_steps']:.0f} | {s['trajs_with_any_finding'] / s['trajectories']:.0%} | {s['waste_share']:.0%} | {s['sunk_share']:.0%} |")
     for sub, s in sorted(res["submissions"].items(), key=lambda kv: -kv[1]["waste_cost"]):
         L.append(f"\n## {sub}\n")
         for d, v in s["by_detector"].items():
             L.append(f"- {d}: {v['share_of_trajs']:.0%} of runs, ${v['cost']:,.2f}")
         L.append(f"- runs over 2× the p90 step count: {s['runs_over_2x_p90_steps']}")
+        if s["resolve_rate"] is not None:
+            rf = s["resolve_rate_with_findings"]; rc = s["resolve_rate_without_findings"]
+            L.append(f"- resolve rate: {s['resolve_rate']:.0%} overall; "
+                     f"{rf:.0%} for runs with findings" if rf is not None else "- resolve rate: n/a")
+            if rc is not None:
+                L[-1] += f", {rc:.0%} for clean runs"
         if s["worst"]:
             L.append("\nWorst runs:")
             for h in s["worst"]:

@@ -1,44 +1,58 @@
-# metermaid audit — Phase 0
+# metermaid audit
 
-One-page audit of AI agent spend from the Anthropic and OpenAI admin APIs.
-Runs on your machine. Keys never leave it. Output is `audit.md` + `audit.json`.
+Open-source tools behind [the Agent Waste Index](https://metermaid.ai/index-report.html): where AI agent spend goes, what it wasted, and what to change. Everything runs locally; keys and traces never leave your machine.
 
-## Run
+## Tools
+
+| file | what it does |
+|---|---|
+| `metermaid_audit.py` | Spend audit against the Anthropic and OpenAI admin APIs (read-only). Prices over-tier models, missing prompt caching, batch-eligible jobs, spend spikes, unowned keys. `--anon` hashes every id so the output is safe to share. |
+| `trajectory_audit.py` | Trace-level audit over agent trajectory files (SWE-agent, mini-swe-agent, OpenHands, message lists). Loops, blind retries, oversized tool output, edit thrash, runs that ended without a result. |
+| `pipeline.py` | The scaled pipeline: streams trajectory datasets from Hugging Face, parses nine formats, detects at ingest, writes Parquet, reports with DuckDB. Produces the Index. |
+| `hf_pull.py`, `hf_batch.py` | Earlier per-file tooling for pulling Hugging Face trajectory datasets and sampling raw rows for new parsers. `pipeline.py` supersedes them for analysis. |
+| `ratecard.json` | Per-model prices used by the spend audit. Verify against provider pricing pages before sharing an audit. |
+| `keymap.example.json` | Map key / project ids to agents and owners. Copy to `keymap.json`. |
+
+## Spend audit
 
 ```bash
 pip install requests
-cp keymap.example.json keymap.json      # map keys/projects to agents + owners (optional but recommended)
-
-export ANTHROPIC_ADMIN_KEY=sk-ant-admin-...   # Console → Settings → Admin keys (org admin only)
+cp keymap.example.json keymap.json
+export ANTHROPIC_ADMIN_KEY=sk-ant-admin-...   # Console → Settings → Admin keys
 export OPENAI_ADMIN_KEY=sk-admin-...          # platform.openai.com → Organization → Admin keys
-
-python metermaid_audit.py --days 30 --out ./audit
+python metermaid_audit.py --days 30 --anon
 ```
 
-No keys handy? `python metermaid_audit.py --demo` runs on synthetic data.
+Reads usage (daily for the window, hourly for the last 7 days) and cost reports, prices usage from `ratecard.json`, and writes `audit/audit.md` and `audit/audit.json`. No keys? `--demo` runs on synthetic data.
 
-## What it reads
+## Trajectory audit
 
-- Anthropic: `GET /v1/organizations/usage_report/messages` (hourly, grouped by key/workspace/model/tier) and `GET /v1/organizations/cost_report` (daily)
-- OpenAI: `GET /v1/organization/usage/completions` (hourly, grouped by model/project/key/batch) and `GET /v1/organization/costs` (daily)
+```bash
+python trajectory_audit.py path/to/trajectories --label-by-parent --out ./traj-audit
+```
 
-Both require an org-level admin key. Both are read-only.
+Detectors: identical action three or more times with no state-changing action between (loop); identical action right after an error (blind retry); any observation over 20,000 characters (oversized tool output, re-sent every later step); runs that ended without a submit, hit the context limit, or were cut off.
 
-## Detectors (usage-only set)
+## Pipeline and the Index
 
-| ID | Finding | Priced how |
-|---|---|---|
-| L01 | Frontier model on short, high-volume traffic | frontier cost − same tokens at mid-tier, × 50% substitutable share |
-| L02 | Spend with no named owner | governance, not priced |
-| L05 | Prompt caching unused | 50% of uncached input × (input − cache-read price) |
-| L06 | Input tokens/request growing with flat volume | excess tokens × input price |
-| L07 | Daily spend spike > mean + 3σ | excess over mean |
-| L10 | Bursty workload not on batch pricing | spend × 50% |
+```bash
+python -m pip install datasets pyarrow duckdb
+python pipeline.py sweep --limit 20000      # every registered dataset/config/split -> data/runs/*.parquet
+python pipeline.py report                   # -> report/index.md, report/index.json
+python pipeline.py ingest <dataset> --config <cfg> --split <split> --limit N
+python pipeline.py ingest-json samples/*.json   # parse raw rows to test a new format
+```
 
-Thresholds are defaults; tune in `analyze()`. Prices live in `ratecard.json` — verify against provider pricing pages before you hand an audit to anyone.
+Registered datasets, formats, and end-of-run rules live in `REGISTRY` and the parsers at the top of `pipeline.py`. Edition 1 covers 341,054 runs across 15 models and 4 scaffolds; the report is in `report/`.
 
-## Known limits
+Headline findings and retractions are in the Index itself. Dollars in the Index are estimated (characters/4, Sonnet-class rates, with and without cached input pricing); quote the percentages.
 
-- Estimates are from usage × rate card; `cost_report`/`costs` totals are printed alongside for reconciliation.
-- Unknown model ids are priced at a tier reference price and listed at the bottom of the report.
-- No trace-level detectors (loops, retries, context bloat) — that's Phase 2.
+## Sharing results
+
+`--anon` on the spend audit hashes key, workspace, and project ids and drops owner emails. Send `audit/audit.json` or `traj-audit/trajectory-audit.json` via the form at metermaid.ai and get your resolve-by-length curve and your position against the Index.
+
+## Data sources (edition 1)
+
+SWE-bench/SWE-smith-trajectories, nvidia/Open-SWE-Traces, nebius/SWE-agent-trajectories, nebius/SWE-rebench-openhands-trajectories, nvidia/SWE-Hero and SWE-Zero, SWE-Gym/OpenHands-Sampled-Trajectories, thoughtworks/agentic-coding-trajectories, open-thoughts/AgentTrove, ricdomolm/mini-coder-trajs-400k, AlienKevin/SWE-ZERO-12M-trajectories. The SWE-bench leaderboard S3 bucket and Princeton HAL traces are access-restricted; `download_logs.py` is a signed-request patch of the SWE-bench helper kept in case that changes.
+
+MIT.

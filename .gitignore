@@ -1,5 +1,14 @@
 keymap.json
 audit/
 audit-*/
+traj-audit/
+hf/
+data/
+results/
+results.zip
+samples/
+experiments/
+hal/
+hal-results/
 __pycache__/
 *.pyc
