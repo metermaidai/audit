@@ -49,6 +49,18 @@ Registered datasets, formats, and end-of-run rules live in `REGISTRY` and the pa
 
 Headline findings are in the Index; method, caveats and retractions are in [`report/notes.md`](report/notes.md) — read those before quoting anything. Dollars in the Index are estimated (characters/4, Sonnet-class rates, with and without cached input pricing); quote the percentages.
 
+## Tests
+
+```bash
+python -m unittest discover -s tests -v     # or: python tests/test_smoke.py
+```
+
+Standard library only; the pipeline report tests skip unless `duckdb` and `pyarrow` are installed.
+They cover the detectors, the spend audit's `--demo` and `--anon` paths, the shared
+mechanical-waste basis that makes a local audit comparable to the Index, and the checked-in
+report agreeing with the numbers quoted in this README, `report/notes.md` and `launch.md`.
+CI runs them on every push and pull request.
+
 ## Sharing results
 
 `--anon` on the spend audit hashes key, workspace, and project ids and drops owner emails. Send `audit/audit.json` or `traj-audit/trajectory-audit.json` via the form at metermaid.ai and get your resolve-by-length curve and your position against the Index.

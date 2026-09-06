@@ -1,0 +1,33 @@
+name: tests
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      # duckdb and pyarrow unlock the pipeline report tests; without them those
+      # tests skip rather than fail. `datasets` is deliberately not installed —
+      # nothing here should reach the network.
+      - name: Install test dependencies
+        run: python -m pip install --upgrade pip duckdb pyarrow
+
+      - name: Run tests
+        run: python -m unittest discover -s tests -v
