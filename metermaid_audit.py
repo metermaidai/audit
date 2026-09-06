@@ -29,11 +29,13 @@ from dataclasses import dataclass, asdict
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+# requests is only needed to call the admin APIs. --help and --demo do no network I/O,
+# and the README offers --demo as the path for people with no keys, so a missing requests
+# must not stop them: fail at the first real request instead.
 try:
     import requests
 except ImportError:  # pragma: no cover
-    print("pip install requests", file=sys.stderr)
-    sys.exit(1)
+    requests = None
 
 HERE = Path(__file__).resolve().parent
 ANTHROPIC_BASE = "https://api.anthropic.com"
@@ -108,6 +110,9 @@ def _iso(dt: datetime) -> str:
 
 
 def _get(url, headers, params, retries=5):
+    if requests is None:
+        print("pip install requests", file=sys.stderr)
+        sys.exit(1)
     name = url.rsplit("/", 1)[-1]
     for attempt in range(retries):
         try:

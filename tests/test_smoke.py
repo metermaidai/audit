@@ -14,6 +14,7 @@ import contextlib
 import importlib.util
 import io
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -78,6 +79,19 @@ class TestSpendAudit(unittest.TestCase):
             data = json.loads((Path(td) / "audit.json").read_text(encoding="utf-8"))
             self.assertTrue((Path(td) / "audit.md").exists())
             self.assertTrue(data["result"]["findings"], "demo run produced no findings")
+
+    def test_keyless_paths_work_without_requests(self):
+        """--help and --demo do no network I/O, and the README offers --demo to people
+        with no keys, so neither may require requests to be installed."""
+        with tempfile.TemporaryDirectory() as block, tempfile.TemporaryDirectory() as td:
+            (Path(block) / "requests.py").write_text('raise ImportError("blocked for test")',
+                                                     encoding="utf-8")
+            env = {**os.environ, "PYTHONPATH": block}
+            for args in (["--help"], ["--demo", "--days", "30", "--out", td]):
+                with self.subTest(args=args[0]):
+                    r = subprocess.run([sys.executable, str(ROOT / "metermaid_audit.py"), *args],
+                                       capture_output=True, text=True, env=env, cwd=td)
+                    self.assertEqual(r.returncode, 0, r.stderr)
 
     def test_anon_strips_identifiers(self):
         with tempfile.TemporaryDirectory() as td:
