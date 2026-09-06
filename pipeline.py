@@ -431,7 +431,7 @@ def write_parquet(runs: list[Run], path: Path):
 
 
 def ingest(ds: str, cfg: str | None, split: str, limit: int, out: Path) -> int:
-    need("datasets")
+    need("datasets"); need("pyarrow")
     from datasets import load_dataset
     spec = REGISTRY.get(ds, {})
     print(f"=== {ds} config={cfg or 'default'} split={split} limit={limit}", file=sys.stderr)
@@ -461,7 +461,7 @@ def ingest(ds: str, cfg: str | None, split: str, limit: int, out: Path) -> int:
 
 
 def sweep(limit: int, out: Path, only: list[str] | None):
-    need("datasets")
+    need("datasets"); need("pyarrow")
     from datasets import get_dataset_split_names, get_dataset_config_names
     for ds, spec in REGISTRY.items():
         if only and ds not in only:
@@ -484,6 +484,7 @@ def sweep(limit: int, out: Path, only: list[str] | None):
 
 def ingest_json(paths: list[str], out: Path):
     """Parse raw sample rows (as written by hf_batch --sample) for testing new formats."""
+    need("pyarrow")
     runs = []
     for p in paths:
         rows = json.load(open(p, encoding="utf-8"))
@@ -578,13 +579,14 @@ def report(data: Path, out: Path):
     exits = [dict(zip(["dataset", "model", "terminal", "exit_status", "n"], r)) for r in con.execute(
         "SELECT dataset, model, terminal, coalesce(exit_status,'') , count(*) FROM runs GROUP BY ALL ORDER BY dataset, model, 5 DESC").fetchall()]
     strat = [dict(zip([d[0] for d in con.description], r)) for r in con.execute(q2).fetchall()]
-    total = con.execute("SELECT count(*), sum(est_cost), sum(mech_cost), sum(CASE WHEN sunk THEN est_cost END) FROM runs").fetchone()
+    total = con.execute("SELECT count(*), sum(est_cost), sum(mech_cost), sum(CASE WHEN sunk THEN est_cost ELSE 0 END) FROM runs").fetchone()
+    share = lambda v: "—" if not total[1] else f"{v / total[1]:.0%}"
 
     (out / "index.json").write_text(json.dumps({"total_runs": total[0], "groups": recs, "stratified": strat, "marginal": marg, "exits": exits}, indent=1, default=str), encoding="utf-8")
     pct = lambda v: "—" if v is None else f"{v:.0%}"
     L = ["# Agent Waste Index\n",
          f"{total[0]:,} runs. Estimated cost basis: chars/4 at Sonnet-class rates — quote percentages, not dollars. "
-         f"Mechanical waste {total[2] / total[1]:.0%} of estimated spend; {total[3] / total[1]:.0%} spent on runs that ended without a result. "
+         f"Mechanical waste {share(total[2])} of estimated spend; {share(total[3])} spent on runs that ended without a result. "
          f"Mechanical waste counts loops, blind retries and context bloat; edit thrash is reported but not counted.\n",
          "Method, caveats and retractions: [notes.md](notes.md).\n",
          "| dataset | config/split | model | scaffold | runs | med steps | loops | blind retries | big tool output | edit thrash | ctx exhausted | ended w/o result | mech waste % | failed-run % | resolve | w/ finding | clean | w/ big output | w/o big output |",

@@ -214,7 +214,7 @@ def parse_any(obj: dict, tid: str, sub: str) -> Traj | None:
         t.submission = f"{sub}/{str(model).split('/')[-1][:40]}"
     if not t.exit_status:
         ex = obj.get("exit_status")
-        if isinstance(ex, str) and ex:
+        if isinstance(ex, str) and ex not in ("", "None"):   # pipeline.py filters "None" too
             t.exit_status = ex
     for key in ("target", "resolved", "success"):
         v = obj.get(key)
@@ -476,10 +476,9 @@ def write(res: dict, unparsed: list[str], out: Path):
         L.append(f"- runs over 2× the p90 step count: {s['runs_over_2x_p90_steps']}")
         if s["resolve_rate"] is not None:
             rf = s["resolve_rate_with_findings"]; rc = s["resolve_rate_without_findings"]
-            L.append(f"- resolve rate: {s['resolve_rate']:.0%} overall; "
-                     f"{rf:.0%} for runs with findings" if rf is not None else "- resolve rate: n/a")
-            if rc is not None:
-                L[-1] += f", {rc:.0%} for clean runs"
+            parts = ([f"{rf:.0%} for runs with findings"] if rf is not None else []) + \
+                    ([f"{rc:.0%} for clean runs"] if rc is not None else [])
+            L.append(f"- resolve rate: {s['resolve_rate']:.0%} overall" + ("; " + ", ".join(parts) if parts else ""))
         if s["worst"]:
             L.append("\nWorst runs:")
             for h in s["worst"]:

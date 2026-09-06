@@ -57,7 +57,7 @@ Index. If you change the detector set in one, change it in the other.
 `nvidia/Open-SWE-Traces` does not attribute a single generating model per config on its dataset
 card, and the traces carry no model field. Those rows are labelled by trace version
 ("Open-SWE v1.0 (see card)") rather than by a model name. Do not substitute a guess: three
-configs and 100,000 runs ride on that label.
+configs, six groups and 120,000 runs ride on that label.
 
 Dataset-provenance labels are also not model names. `nebius-swe-rebench-openhands`,
 `swe-smith-claude-3-7-sonnet` and `kwai-klear-swe-smith-mini` are the source labels
