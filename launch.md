@@ -1,84 +1,168 @@
 # Launch copy — paste-ready
 
+Every number below is from `report/index.json` (edition 1, 341,054 runs). Method, caveats and
+retractions: [`report/notes.md`](report/notes.md). Cost is estimated (chars/4 at Sonnet-class
+rates) — quote percentages, never dollars.
+
+**Do not reuse the 4,000-run pilot copy.** Its headline ("runs with any finding resolve at half
+the rate, in every group") does not survive the full set, and its per-run dollar figures were
+withdrawn. See the retractions section in notes.md before answering questions about it.
+
+---
+
 ## 1. README section (add under the title)
 
-### What we found in 4,000 public coding-agent runs
+### What we found in 341,054 public coding-agent runs
 
-We ran the trajectory detectors over 4,000 public SWE-bench-style runs: 2,000 SWE-agent runs on Llama 8B/70B/405B (Nebius) and 2,000 SWE-smith runs on Claude 3.5 and 3.7 Sonnet (SWE-bench). Same detectors, same pricing basis.
-
-| agent | runs | degenerate loops | identical retries after error | oversized tool output | mechanical waste | spend on runs that produced nothing | resolve rate: any finding vs clean |
-|---|---:|---:|---:|---:|---:|---:|---|
-| Llama 70B (SWE-agent) | 1,793 | 14% | 20% | 1% | 23% | 78% | 6% vs 25% |
-| Llama 8B (SWE-agent) | 167 | 26% | 29% | 0% | 34% | 92% | 4% vs 42% |
-| Claude 3.5 Sonnet (SWE-smith) | 590 | 0% | 1% | 14% | 8% | 52% | 19% vs 30% |
-| Claude 3.7 Sonnet (SWE-smith) | 1,410 | 0% | 0% | 16% | 5% | 22% | 30% vs 60% |
+We ran the trajectory detectors over 341,054 runs from 11 public trajectory datasets — 29
+dataset/model/scaffold groups, 4 scaffold families, from 2024 Llama agents to Qwen3-Coder-480B and
+Claude 3.7 Sonnet. Every run is scored at ingest by the same detectors on the same pricing basis;
+groups are capped at the first 20,000 runs of each dataset/config/split, so the larger datasets
+are a head sample, not their entirety.
 
 Three things stood out.
 
-1. Frontier agents don't loop. Degenerate loops and blind retries — the classic failure modes — are gone in Claude 3.5 and 3.7. They're still 14–29% of runs on open 2024 agents.
-2. The frontier problem is failed runs and context. Claude 3.7 spent 22% of its budget on runs that produced no result, at $8–9 each (the most expensive runs in the set), and 1 in 6 runs dragged a >20k-character tool output through every remaining step.
-3. Waste predicts failure, everywhere. Runs with any finding resolved at roughly half the rate of clean runs, in all five model groups. That makes these signals actionable mid-run: a run that trips a detector is a candidate for early termination or escalation, before it becomes a $9 failure.
+**1. Mechanical waste is small, and loops are basically a solved problem.** Across the whole set,
+loops, blind retries and context bloat account for 4% of estimated spend. Degenerate loops are a
+weak-model artifact: 14% of runs on swe-agent-llama-70b and 18% on llama-8b, against 0.4–0.5% on
+Claude 3.7 Sonnet and 0.0–1.3% on Qwen3-Coder-480B. Blind retries follow the same shape (22% and
+31% on the Llama agents; under 1% on Claude 3.7). If you are still writing loop detectors for a
+frontier model, you are solving 2024's problem.
 
-Caveats: dollar figures are estimated from characters at Sonnet-class rates because neither dataset carries per-run cost — read the percentages, not the dollars. SWE-smith is a curated training set, so its resolve rates aren't comparable to Nebius's; the within-group gap is what matters. SWE-smith rows carry no exit status, so "produced nothing" there is a heuristic (no submit action).
+**2. Oversized tool output is a scaffold property, not a model property.** Open-SWE-Traces v1.1
+runs the same trace version through three scaffolds, so the model is held constant:
 
-Reproduce: `python hf_pull.py nebius/SWE-agent-trajectories --limit 2000 --out ./hf`, `python hf_pull.py SWE-bench/SWE-smith-trajectories --split tool --limit 2000 --out ./hf`, `python trajectory_audit.py ./hf --label-by-parent`.
+| scaffold | runs | median steps | runs carrying a >20k-char observation |
+|---|---:|---:|---:|
+| minisweagent | 20,000 | 51 | 0.1% |
+| openhands | 20,000 | 77 | 49.9% |
+| sweagent | 20,000 | 76 | 54.8% |
+
+Across all five mini-swe-agent groups in the set, oversized observations stay at or below 0.2%,
+while openhands groups run 7–72%. The likely cause is an output cap in the scaffold rather than
+tidier models — worth confirming against the scaffold source before you quote a mechanism — but
+the shape of the result is not subtle, and the capped scaffold's runs are *shorter*, not longer.
+
+**3. The money is in run length, and the long tail buys almost nothing.** Split each group's runs
+into five equal-count buckets by step count. The longest bucket takes 40% of estimated spend
+across the whole set (21–72% by group, median 50%) and is the worst bucket per task solved:
+resolved-per-dollar is lowest in the longest quintile in 13 of the 15 groups that carry resolve
+labels, by 8× to 285×. Resolve rate itself falls from the shortest to the longest quintile in 14
+of 15. Whatever else you tune, a step budget is the lever with the most money behind it.
+
+**Caveats.** No public dataset here carries per-run cost, so dollars are estimated from characters
+at Sonnet-class rates — read the percentages. Task mix differs by group, so resolve rates are
+comparable within a group, not across groups. `thoughtworks/agentic-coding-trajectories` resamples
+populations already in the set; don't pool it with them. Full list in
+[`report/notes.md`](report/notes.md).
+
+**Retracted from the pilot.** An earlier 4,000-run version of this reported that runs tripping any
+detector resolved at ~half the rate of clean runs in every group, and pitched it as a mid-run kill
+signal. At full scale that holds only for weak models (0.16–0.25× on Llama and gpt-4o) and
+reverses on SWE-smith Claude 3.5 Sonnet (1.10–1.22×) and mini-coder-trajs-400k (1.18×) — 15 of 20
+groups worse when flagged, 5 better. Don't ship a kill switch on it without measuring your own
+traffic.
+
+Reproduce: `python pipeline.py sweep --limit 20000` then `python pipeline.py report`.
 
 ---
 
 ## 2. Show HN
 
-**Title:** Show HN: Audit your AI agent spend locally – plus what 4,000 public agent runs revealed
+**Title:** Show HN: Audit your AI agent spend locally – plus what 341,054 public agent runs showed
 
 **Body:**
 
-I built a small CLI that reads your Anthropic/OpenAI admin API on your own machine (nothing is sent anywhere) and prices the waste: frontier models on short high-volume traffic, uncached prompts, nightly jobs off batch pricing, keys with no owner.
+I built a small CLI that reads your Anthropic/OpenAI admin API on your own machine (nothing is
+sent anywhere) and prices the waste: frontier models on short high-volume traffic, uncached
+prompts, nightly jobs off batch pricing, keys with no owner.
 
-Before asking anyone to run it on their spend, I ran the trace-level detectors on 4,000 public coding-agent runs (SWE-agent on Llama, SWE-smith on Claude 3.5/3.7). Findings:
+Before asking anyone to run it on their own spend, I ran the trace-level detectors over 341,054
+runs from 11 public trajectory datasets, 4 scaffold families (capped at 20k runs per
+dataset/config/split). Findings:
 
-- Frontier agents don't loop anymore. 0% degenerate loops on Claude vs 14–29% on 2024 Llama agents.
-- They still burn budget on failures: 22% of Claude 3.7 spend went to runs that produced nothing, at $8–9 a run. 1 in 6 runs dragged a >20k-char tool output through the rest of the run.
-- Runs that trip any detector resolve at about half the rate of clean runs, in all five model groups. So the signal is usable mid-run, not just in a post-mortem.
+- Mechanical waste (loops, blind retries, context bloat) is 4% of estimated spend. Degenerate
+  loops are a weak-model artifact: 14–18% of runs on 2024 Llama agents, 0.4–0.5% on Claude 3.7.
+- Oversized tool output is a scaffold choice. Same Open-SWE trace version through three scaffolds:
+  0.1% of runs carry a >20k-char observation under mini-swe-agent, 50% under OpenHands, 55% under
+  SWE-agent. The capped scaffold's runs are shorter, not longer.
+- The real money is run length. The longest fifth of runs takes 40% of estimated spend and is the
+  worst bucket per task solved in 13 of 15 groups with resolve labels — by 8× to 285×.
 
-Repo has both tools and the exact commands to reproduce the 4,000-run result from public Hugging Face datasets.
+An earlier 4,000-run version of this claimed waste predicts failure everywhere. It doesn't: at
+full scale that only holds on weak models and reverses on Claude 3.5 SWE-smith. That retraction
+and the rest of the caveats are in report/notes.md in the repo.
 
-If you run the spend audit with `--anon` and post or send me the JSON, I'll reply with the three biggest fixes. Everyone who sends gets the aggregate benchmark back.
+Repo has both tools and the commands to reproduce the whole Index from public Hugging Face
+datasets. Run the spend audit with `--anon` and post or send me the JSON and I'll reply with the
+three biggest fixes; everyone who sends gets the aggregate benchmark back.
 
 ---
 
 ## 3. r/LLMDevs / r/LangChain
 
-**Title:** I ran waste detectors over 4,000 public coding-agent runs. Frontier agents don't loop anymore — they fail expensively instead.
+**Title:** I ran waste detectors over 341,054 public coding-agent runs. Loops are solved; run length is where the money goes.
 
 **Body:**
 
-Built two scripts: one reads your Anthropic/OpenAI admin API locally and prices spend waste (over-tier models, no caching, batch-eligible jobs, unowned keys); one runs trace-level detectors (loops, blind retries, context bloat, abandoned runs) over agent trajectories.
+Two scripts: one reads your Anthropic/OpenAI admin API locally and prices spend waste (over-tier
+models, no caching, batch-eligible jobs, unowned keys); one runs trace-level detectors (loops,
+blind retries, context bloat, abandoned runs) over agent trajectories.
 
-Ran the second on 2,000 SWE-agent/Llama runs and 2,000 SWE-smith/Claude runs from Hugging Face:
+Ran the second over 11 public datasets — 341,054 runs, 29 model/scaffold groups, capped at 20k
+runs per dataset/config/split:
 
-- Llama 70B: 14% of runs loop, 20% retry the exact same failing command, 23% mechanical waste.
-- Claude 3.7: 0% loops, 0% retries, 5% mechanical waste — but 22% of spend on runs that produced nothing ($8–9 each) and 16% of runs carrying a >20k-char tool output through the whole run.
-- In every model group, runs with any finding resolved at about half the rate of clean runs.
+- Mechanical waste is 4% of estimated spend overall. Loops: 14% of runs on swe-agent-llama-70b,
+  0.4% on Claude 3.7 Sonnet. Blind retries: 22% vs under 1%. That failure mode is gone at the
+  frontier.
+- Context bloat is the scaffold's fault, not the model's. Same Open-SWE v1.1 traces:
+  mini-swe-agent 0.1% of runs with a >20k-char observation, OpenHands 50%, SWE-agent 55%.
+- Run length dominates. The longest quintile takes 21–72% of a group's estimated spend (median
+  50%) and returns 8–285× fewer resolved tasks per dollar than the shortest.
 
-Repo + reproduce commands in the comments. Run the spend audit with `--anon` on your own org and post the JSON — I'll tell you what to fix.
+Also a retraction: an earlier 4,000-run cut of this said runs tripping any detector resolve at
+half the rate, everywhere. At 341k that's true for weak models and *reverses* on Claude 3.5
+SWE-smith. Details in report/notes.md.
+
+Repo + reproduce commands in the comments. Run the spend audit with `--anon` on your own org and
+post the JSON — I'll tell you what to fix.
 
 ---
 
 ## 4. X thread
 
-1/ I ran waste detectors over 4,000 public AI coding-agent runs. Short version: frontier agents don't loop anymore. They fail expensively instead.
+1/ I ran waste detectors over 341,054 public AI coding-agent runs — 11 datasets, 29 model/scaffold
+groups. Short version: the loop problem is solved. The run-length problem isn't.
 
-2/ 2024 Llama agents (SWE-agent): 14–29% of runs stuck in degenerate loops — one ran `ls` 318 times in a row. 20–29% blindly re-ran a failing command. Mechanical waste: 23–34% of spend.
+2/ Degenerate loops and blind retries are a 2024 weak-model artifact. swe-agent-llama-70b: 14% of
+runs loop, 22% blindly re-run a failing command. Claude 3.7 Sonnet: 0.4% and 0.5%.
+Qwen3-Coder-480B: under 1.3%.
 
-3/ Claude 3.7 Sonnet (SWE-smith): 0% loops. 0% blind retries. Mechanical waste: 5%.
+3/ Total mechanical waste across the whole set — loops, blind retries, oversized tool output —
+is 4% of estimated spend. It is not where your money is going.
 
-4/ But 22% of Claude 3.7's spend went to runs that produced nothing, at $8–9 per run — the most expensive runs in the dataset. And 1 in 6 runs dragged a >20k-character tool output through every remaining step.
+4/ Oversized tool output is a scaffold choice, not a model trait. Same Open-SWE v1.1 traces, three
+scaffolds: 0.1% of runs carry a >20k-char observation under mini-swe-agent, 50% under OpenHands,
+55% under SWE-agent. The capped one has *shorter* runs.
 
-5/ The part that matters: in all five model groups, runs that tripped any detector resolved at about half the rate of clean runs. 30% vs 60% for Claude 3.7. That's a mid-run kill/escalate signal, not just a post-mortem.
+5/ Here's the money. Split each group's runs into fifths by step count. The longest fifth takes
+40% of estimated spend across the set (up to 72% in a group) and returns 8–285× fewer resolved
+tasks per dollar than the shortest fifth. 13 of 15 groups, same direction.
 
-6/ Both tools are open: a local spend audit for your Anthropic/OpenAI org (nothing leaves your machine) and the trajectory auditor. Reproduce commands in the README. Run the audit with --anon, send me the JSON, I'll send back the fixes. [repo link]
+6/ A correction to my own earlier post: on 4,000 runs I said runs tripping any detector resolve at
+half the rate, in every group. At 341k it only holds on weak models (0.16–0.25×) and reverses on
+Claude 3.5 SWE-smith (up to 1.22×). Retracted, written up in the repo.
+
+7/ Both tools are open: a local spend audit for your Anthropic/OpenAI org (nothing leaves your
+machine) and the trajectory auditor. Reproduce commands in the README. Run the audit with --anon,
+send me the JSON, I'll send back the fixes. [repo link]
 
 ---
 
 ## 5. Discord one-liner (LangChain, Latent Space)
 
-Ran waste detectors over 4,000 public agent runs — frontier agents don't loop anymore, but 22% of Claude 3.7 spend still went to runs that produced nothing, and runs with any waste signal resolve at half the rate. Open tools + reproduce steps here: [repo link]. If you run the spend audit on your org with --anon and DM me the JSON I'll send back the top fixes.
+Ran waste detectors over 341,054 public agent runs. Loops are a solved problem (14% of runs on
+2024 Llama agents, 0.4% on Claude 3.7), mechanical waste is only 4% of spend, and the actual money
+is run length — the longest fifth of runs takes 40% of estimated spend and returns up to 285×
+fewer resolved tasks per dollar. Open tools + reproduce steps here: [repo link]. If you run the
+spend audit on your org with --anon and DM me the JSON I'll send back the top fixes.

@@ -42,6 +42,12 @@ STATE_CHANGE = re.compile(r"(str_replace|\bedit\b|\bcreate\b|\bwrite\b|\binsert\
                           r"\btouch\b|\bmkdir\b|\bpatch\b|pip install|npm install|git (apply|checkout|stash|reset|commit)|"
                           r"\becho\b[^|]*>|\bcat\b[^|]*>|new_str|file_text|\"command\": \"(create|str_replace|insert)\")", re.I)
 
+# Detector groups. These must stay in step with pipeline.py, which produces the Index:
+# a local audit is only comparable to the Index if it counts the same detectors.
+MECH = ("T01", "T02", "T03")                     # mechanical waste: loop, blind retry, context bloat
+SUNK = ("T06", "T07")                            # run ended without a real result
+EXCLUDED_FROM_FINDING = ("T13",)                 # edit thrash: reported, but too noisy to gate on
+
 
 @dataclass
 class Step:
@@ -206,6 +212,10 @@ def parse_any(obj: dict, tid: str, sub: str) -> Traj | None:
     model = obj.get("model_name") or obj.get("model")
     if model:
         t.submission = f"{sub}/{str(model).split('/')[-1][:40]}"
+    if not t.exit_status:
+        ex = obj.get("exit_status")
+        if isinstance(ex, str) and ex:
+            t.exit_status = ex
     for key in ("target", "resolved", "success"):
         v = obj.get(key)
         if isinstance(v, bool):
@@ -389,17 +399,18 @@ def summarize(trajs: list[Traj], hits: list[Hit]) -> dict:
         hs = hits_by_sub[sub]
         total = sum(costs)
         # de-duplicate: union of wasted step indices × step cost, plus non-step costs (T03), capped at run cost
-        waste = 0.0        # mechanical: T01 T02 T03 T13
+        waste = 0.0        # mechanical: T01 T02 T03 (same basis as pipeline.py, so a local
+                           # number is comparable to the Index). T13 edit thrash is reported
+                           # per-detector but excluded: it flags normal iterative editing too often.
         sunk = 0.0         # runs that ended without a real result: T06 T07
         hs_by_traj = defaultdict(list)
         for h in hs:
             hs_by_traj[h.traj_id].append(h)
-        SUNK = ("T06", "T07")
         for t in ts:
             th = hs_by_traj.get(t.id, [])
             if not th:
                 continue
-            mech = [h for h in th if not h.detector.startswith(SUNK)]
+            mech = [h for h in th if h.detector.startswith(MECH)]
             idx = set().union(*[h.idx for h in mech]) if mech else set()
             step_cost = (t.cost or 0) / max(len(t.steps), 1)
             extra = sum(h.wasted_cost for h in mech if not h.idx)
@@ -413,7 +424,7 @@ def summarize(trajs: list[Traj], hits: list[Hit]) -> dict:
             det[h.detector]["trajs"] += 1
             det[h.detector]["cost"] += h.wasted_cost
         with_res = [t for t in ts if t.resolved is not None]
-        flagged = {h.traj_id for h in hs}
+        flagged = {h.traj_id for h in hs if not h.detector.startswith(EXCLUDED_FROM_FINDING)}
         res_all = (sum(t.resolved for t in with_res) / len(with_res)) if with_res else None
         res_flag = [t.resolved for t in with_res if t.id in flagged]
         res_clean = [t.resolved for t in with_res if t.id not in flagged]
@@ -427,7 +438,7 @@ def summarize(trajs: list[Traj], hits: list[Hit]) -> dict:
             "median_cost": statistics.median(costs) if costs else 0,
             "mean_steps": statistics.mean(steps) if steps else 0, "p90_steps": p90,
             "runs_over_2x_p90_steps": len(outliers),
-            "trajs_with_any_finding": len({h.traj_id for h in hs}),
+            "trajs_with_any_finding": len(flagged),
             "waste_cost": waste, "waste_share": (waste / total) if total else 0,
             "sunk_cost": sunk, "sunk_share": (sunk / total) if total else 0,
             "by_detector": {k: {"trajs": v["trajs"], "share_of_trajs": v["trajs"] / len(ts), "cost": v["cost"]} for k, v in sorted(det.items())},
@@ -446,11 +457,13 @@ def write(res: dict, unparsed: list[str], out: Path):
     L = ["# metermaid trajectory audit\n",
          f"{res['trajectories']:,} trajectories across {len(res['submissions'])} submission(s). "
          f"Total cost ${res['total_cost']:,.2f}. Mechanical waste ${res['waste_cost']:,.2f} ({res['waste_share']:.0%}) — "
-         f"steps spent in identical-action loops, identical retries after errors, oversized tool output dragged through context, and edit thrash. "
+         f"steps spent in identical-action loops, identical retries after errors, and oversized tool output dragged through context. "
          f"Separately, ${res['sunk_cost']:,.2f} ({res['sunk_share']:.0%}) was spent on runs that ended without a real result "
          f"(abandoned, or hit the context limit).\n",
          "Priced from each trajectory's own reported cost where present, else from tokens/chars at the --price defaults. "
-         "Mechanical totals de-duplicate overlapping detectors and never exceed a run's cost; per-detector lines can overlap.\n",
+         "Mechanical totals de-duplicate overlapping detectors and never exceed a run's cost; per-detector lines can overlap. "
+         "Edit thrash (T13) is listed per-detector but is not counted in mechanical waste or in 'any finding', because it flags "
+         "normal iterative editing too often — the Index uses the same basis, so these numbers are comparable to it.\n",
          "| submission | trajs | cost basis | total $ | median $/run | mean steps | any finding | mechanical waste % | failed-run cost % |",
          "|---|---:|---|---:|---:|---:|---:|---:|---:|"]
     for sub, s in sorted(res["submissions"].items(), key=lambda kv: -kv[1]["waste_cost"]):

@@ -31,12 +31,22 @@ PRICE_IN, PRICE_OUT = 3.0, 15.0     # USD per 1M tokens for the chars/4 estimate
 # ---------------------------------------------------------------------------
 # Registry: how to read each dataset. Anything not listed here is handled generically.
 # ---------------------------------------------------------------------------
+# Open-SWE-Traces does not attribute a single generating model per config on its dataset card,
+# and the traces themselves carry no model field. Edition 1 therefore labels these rows by trace
+# version and points readers at the card rather than naming a model. Do not substitute a guess:
+# the published Index uses exactly these labels, and changing them silently changes the report.
+OPEN_SWE_MODEL_BY_CONFIG = {
+    "v1.0": "Open-SWE v1.0 (see card)",
+    "v1.1": "Open-SWE v1.1 (see card)",
+    "v1.2": "Open-SWE v1.2 (see card)",
+}
+
 REGISTRY = {
     "nebius/SWE-agent-trajectories":            dict(field="trajectory", model="col:model_name", resolved="col:target", exit="col:exit_status", scaffold="swe-agent"),
     "SWE-bench/SWE-smith-trajectories":         dict(field="messages", model="col:model", resolved="col:resolved", scaffold="swe-agent/{split}", splits=["tool", "xml", "ticks"]),
     "nebius/SWE-rebench-openhands-trajectories": dict(field="trajectory", model="Qwen3-Coder-480B", resolved="col:resolved", exit="col:exit_status", scaffold="openhands"),
     "nvidia/Open-SWE-Traces":                   dict(field="auto", model="cfgmap", resolved="auto", scaffold="{split}", configs=["v1.0", "v1.1", "v1.2"], splits="all",
-                                                     model_by_config={"v1.0": "MiniMax-M2.5 + Qwen3.5-122B (mixed)", "v1.1": "DeepSeek-V4-Flash + Qwen3.6-27B (mixed)", "v1.2": "Qwen3.8-27B"}),
+                                                     model_by_config=OPEN_SWE_MODEL_BY_CONFIG),
     "nvidia/SWE-Hero-openhands-trajectories":   dict(field="trajectory", model="Qwen3-Coder-480B", resolved="none", scaffold="openhands"),
     "nvidia/SWE-Zero-openhands-trajectories":   dict(field="trajectory", model="Qwen3-Coder-480B", resolved="none", scaffold="openhands"),
     "thoughtworks/agentic-coding-trajectories": dict(field="messages_json", model="col:source_dataset", resolved="json:ground_truth_meta_json.resolved", scaffold="col:agent_framework"),
@@ -404,7 +414,16 @@ def row_to_run(row: dict, ds: str, cfg: str, split: str, spec: dict, idx: int) -
 # ---------------------------------------------------------------------------
 # Ingest / sweep / report
 # ---------------------------------------------------------------------------
+def need(module: str, pip_name: str | None = None):
+    """Import a heavy optional dependency, or exit with the pip line that installs it."""
+    try:
+        return __import__(module)
+    except ImportError:
+        sys.exit(f"{module} is required for this command: python -m pip install {pip_name or module}")
+
+
 def write_parquet(runs: list[Run], path: Path):
+    need("pyarrow")
     import pyarrow as pa, pyarrow.parquet as pq
     path.parent.mkdir(parents=True, exist_ok=True)
     tbl = pa.Table.from_pylist([asdict(r) for r in runs])
@@ -412,6 +431,7 @@ def write_parquet(runs: list[Run], path: Path):
 
 
 def ingest(ds: str, cfg: str | None, split: str, limit: int, out: Path) -> int:
+    need("datasets")
     from datasets import load_dataset
     spec = REGISTRY.get(ds, {})
     print(f"=== {ds} config={cfg or 'default'} split={split} limit={limit}", file=sys.stderr)
@@ -441,6 +461,7 @@ def ingest(ds: str, cfg: str | None, split: str, limit: int, out: Path) -> int:
 
 
 def sweep(limit: int, out: Path, only: list[str] | None):
+    need("datasets")
     from datasets import get_dataset_split_names, get_dataset_config_names
     for ds, spec in REGISTRY.items():
         if only and ds not in only:
@@ -484,14 +505,18 @@ def ingest_json(paths: list[str], out: Path):
 
 
 def report(data: Path, out: Path):
-    import duckdb
+    duckdb = need("duckdb")
+    shards = sorted((data / "runs").glob("*.parquet"))
+    if not shards:
+        sys.exit(f"no parquet shards in {(data / 'runs').as_posix()}/ — run `python pipeline.py sweep` (or `ingest`) first")
     out.mkdir(parents=True, exist_ok=True)
     con = duckdb.connect()
+    open_swe_case = "\n                    ".join(
+        f"WHEN dataset = 'nvidia/Open-SWE-Traces' AND config = '{cfg}' THEN '{label}'"
+        for cfg, label in OPEN_SWE_MODEL_BY_CONFIG.items())
     con.execute(f"""CREATE VIEW runs AS
         SELECT * REPLACE (
-               CASE WHEN dataset = 'nvidia/Open-SWE-Traces' AND config = 'v1.0' THEN 'MiniMax-M2.5 + Qwen3.5-122B (mixed)'
-                    WHEN dataset = 'nvidia/Open-SWE-Traces' AND config = 'v1.1' THEN 'DeepSeek-V4-Flash + Qwen3.6-27B (mixed)'
-                    WHEN dataset = 'nvidia/Open-SWE-Traces' AND config = 'v1.2' THEN 'Qwen3.8-27B'
+               CASE {open_swe_case}
                     ELSE model END AS model),
                least((loop_steps + retry_steps) * est_cost / greatest(steps, 1) + bloat_excess_tokens * {PRICE_IN} / 1e6, est_cost) AS mech_cost,
                (loop_steps > 0 OR retry_steps > 0 OR bloat_obs > 0 OR sunk) AS flagged,
@@ -559,7 +584,9 @@ def report(data: Path, out: Path):
     pct = lambda v: "—" if v is None else f"{v:.0%}"
     L = ["# Agent Waste Index\n",
          f"{total[0]:,} runs. Estimated cost basis: chars/4 at Sonnet-class rates — quote percentages, not dollars. "
-         f"Mechanical waste {total[2] / total[1]:.0%} of estimated spend; {total[3] / total[1]:.0%} spent on runs that ended without a result.\n",
+         f"Mechanical waste {total[2] / total[1]:.0%} of estimated spend; {total[3] / total[1]:.0%} spent on runs that ended without a result. "
+         f"Mechanical waste counts loops, blind retries and context bloat; edit thrash is reported but not counted.\n",
+         "Method, caveats and retractions: [notes.md](notes.md).\n",
          "| dataset | config/split | model | scaffold | runs | med steps | loops | blind retries | big tool output | edit thrash | ctx exhausted | ended w/o result | mech waste % | failed-run % | resolve | w/ finding | clean | w/ big output | w/o big output |",
          "|---|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|"]
     for r in recs:

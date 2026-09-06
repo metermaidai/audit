@@ -1,6 +1,8 @@
 # Agent Waste Index
 
-341,054 runs. Estimated cost basis: chars/4 at Sonnet-class rates — quote percentages, not dollars. Mechanical waste 4% of estimated spend; 4% spent on runs that ended without a result.
+341,054 runs. Estimated cost basis: chars/4 at Sonnet-class rates — quote percentages, not dollars. Mechanical waste 4% of estimated spend; 4% spent on runs that ended without a result. Mechanical waste counts loops, blind retries and context bloat; edit thrash is reported but not counted.
+
+Method, caveats and retractions: [notes.md](notes.md).
 
 | dataset | config/split | model | scaffold | runs | med steps | loops | blind retries | big tool output | edit thrash | ctx exhausted | ended w/o result | mech waste % | failed-run % | resolve | w/ finding | clean | w/ big output | w/o big output |
 |---|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
