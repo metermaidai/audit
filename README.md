@@ -1,6 +1,6 @@
 # metermaid audit
 
-Open-source tools behind [the Agent Waste Index](https://metermaid.ai/index-report.html): where AI agent spend goes, what it wasted, and what to change. Everything runs locally; keys and traces never leave your machine.
+Open-source tools behind [the Agent Waste Index](https://metermaid.ai/agent-waste-index.html): where AI agent spend goes, what it wasted, and what to change. Everything runs locally; keys and traces never leave your machine.
 
 ## Tools
 
