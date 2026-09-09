@@ -22,7 +22,7 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-SCRIPTS = ["metermaid_audit.py", "trajectory_audit.py", "pipeline.py",
+SCRIPTS = ["metermaid_audit.py", "trajectory_audit.py", "pipeline.py", "benchmark.py",
            "hf_pull.py", "hf_batch.py", "download_logs.py"]
 
 
@@ -177,6 +177,107 @@ class TestReportRendering(unittest.TestCase):
                         .splitlines() if l.startswith("- resolve rate:"))
         self.assertIn("overall", line)
         self.assertNotIn("n/a", line)
+
+
+class TestRunLengthCurve(unittest.TestCase):
+    """The per-quintile curve trajectory_audit.py computes locally, and the report built from it."""
+
+    def _many_runs(self, n=40, resolved=None):
+        runs = {}
+        for i in range(n):
+            msgs = []
+            for j in range(3 + i):                      # increasing step counts
+                msgs += [{"role": "assistant", "content": f"cmd {j}"},
+                         {"role": "user", "content": "ok " + "x" * (40 * j)}]
+            msgs += [{"role": "assistant", "content": "submit"}, {"role": "user", "content": "done"}]
+            doc = {"messages": msgs, "exit_status": "submitted"}
+            if resolved is not None:
+                doc["resolved"] = resolved(i)
+            runs[f"r{i:03d}"] = doc
+        return runs
+
+    def test_curve_has_five_buckets_covering_every_run(self):
+        with tempfile.TemporaryDirectory() as td:
+            res = run_traj(Path(td), self._many_runs())
+        curve = res["curve"]
+        self.assertEqual([c["q"] for c in curve], [1, 2, 3, 4, 5])
+        self.assertEqual(sum(c["n"] for c in curve), res["trajectories"])
+        self.assertAlmostEqual(sum(c["cost_share"] for c in curve), 1.0, places=6)
+
+    def test_buckets_are_ordered_by_run_length(self):
+        with tempfile.TemporaryDirectory() as td:
+            res = run_traj(Path(td), self._many_runs())
+        highs = [c["steps_hi"] for c in res["curve"]]
+        self.assertEqual(highs, sorted(highs), "quintiles are not ordered by step count")
+        for a, b in zip(res["curve"], res["curve"][1:]):
+            self.assertLessEqual(a["steps_hi"], b["steps_lo"], "buckets overlap on step count")
+
+    def test_ntile_matches_sql_semantics(self):
+        """ntile(5) gives earlier buckets the remainder; the Index relies on that split."""
+        ta = load("trajectory_audit")
+        self.assertEqual([len(b) for b in ta._ntile(list(range(13)), 5)], [3, 3, 3, 2, 2])
+        self.assertEqual([len(b) for b in ta._ntile(list(range(10)), 5)], [2, 2, 2, 2, 2])
+
+    def test_no_curve_below_the_minimum_run_count(self):
+        """Too few runs must produce nothing rather than five noisy buckets."""
+        with tempfile.TemporaryDirectory() as td:
+            res = run_traj(Path(td), self._many_runs(n=6))
+        self.assertEqual(res["curve"], [])
+
+    def test_report_renders_without_outcome_labels(self):
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            res = run_traj(tmp, self._many_runs())
+            audit = tmp / "audit.json"
+            audit.write_text(json.dumps(res), encoding="utf-8")
+            out = tmp / "benchmark.html"
+            subprocess.run([sys.executable, str(ROOT / "benchmark.py"), str(audit),
+                            "--index", str(ROOT / "report" / "index.json"), "--out", str(out),
+                            "--org", "Acme & Co"], check=True, capture_output=True)
+            html = out.read_text(encoding="utf-8")
+        self.assertIn("no task outcomes", html, "missing outcomes should be called out, not hidden")
+        self.assertIn("Acme &amp; Co", html, "org name must be HTML-escaped")
+        self.assertIn("public groups", html, "report did not position against the Index")
+
+    def _render(self, tmp: Path, res: dict) -> str:
+        audit = tmp / "audit.json"
+        audit.write_text(json.dumps(res), encoding="utf-8")
+        out = tmp / "benchmark.html"
+        subprocess.run([sys.executable, str(ROOT / "benchmark.py"), str(audit),
+                        "--index", str(ROOT / "report" / "index.json"), "--out", str(out)],
+                       check=True, capture_output=True)
+        return out.read_text(encoding="utf-8")
+
+    def test_report_states_the_yield_ratio_when_outcomes_exist(self):
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            res = run_traj(tmp, self._many_runs(resolved=lambda i: i % 3 == 0))  # resolves in every bucket
+            self.assertIsNotNone(res["curve"][0]["resolve"])
+            html = self._render(tmp, res)
+        self.assertNotIn("no task outcomes", html)
+        self.assertIn("resolved tasks than a dollar in the shortest", html)
+
+    def test_a_tail_that_resolves_nothing_is_stated_not_dropped(self):
+        """resolved-per-dollar of zero is the strongest form of the finding, not a missing value."""
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            res = run_traj(tmp, self._many_runs(resolved=lambda i: i < 12))  # only short runs resolve
+            self.assertEqual(res["curve"][-1]["resolved_per_dollar"], 0)
+            html = self._render(tmp, res)
+        self.assertIn("resolved <b>nothing at all</b>", html)
+
+    def test_benchmark_ranks_against_the_published_index(self):
+        bm = load("benchmark")
+        index = json.loads((ROOT / "report" / "index.json").read_text(encoding="utf-8"))
+        dist = bm.index_distributions(index)
+        self.assertEqual(len(dist["waste_share"]), len(index["groups"]))
+        self.assertTrue(dist["tail_share"], "no longest-fifth population to rank against")
+        low = bm.rank(0.0, dist["waste_share"])
+        high = bm.rank(1.0, dist["waste_share"])
+        self.assertEqual(low["below"], 0)
+        self.assertEqual(high["below"], high["total"])
+        self.assertIn("lower than", bm.phrase(low))
+        self.assertIn("higher than", bm.phrase(high))
 
 
 @unittest.skipUnless(have("duckdb") and have("pyarrow"), "needs duckdb and pyarrow")
