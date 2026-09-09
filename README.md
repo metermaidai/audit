@@ -8,6 +8,7 @@ Open-source tools behind [the Agent Waste Index](https://metermaid.ai/agent-wast
 |---|---|
 | `metermaid_audit.py` | Spend audit against the Anthropic and OpenAI admin APIs (read-only). Prices over-tier models, missing prompt caching, batch-eligible jobs, spend spikes, unowned keys. `--anon` hashes every id so the output is safe to share. |
 | `trajectory_audit.py` | Trace-level audit over agent trajectory files (SWE-agent, mini-swe-agent, OpenHands, message lists). Loops, blind retries, oversized tool output, edit thrash, runs that ended without a result. |
+| `benchmark.py` | Turns one trajectory audit into a report positioned against the Index: cost by run length, the four-bucket split, and where each number sits among the Index's 29 public groups. Reads only the aggregates, writes one self-contained HTML page. |
 | `pipeline.py` | The scaled pipeline: streams trajectory datasets from Hugging Face, parses nine formats, detects at ingest, writes Parquet, reports with DuckDB. Produces the Index. |
 | `hf_pull.py`, `hf_batch.py` | Earlier per-file tooling for pulling Hugging Face trajectory datasets and sampling raw rows for new parsers. `pipeline.py` supersedes them for analysis. |
 | `ratecard.json` | Per-model prices used by the spend audit. Verify against provider pricing pages before sharing an audit. |
@@ -35,6 +36,25 @@ Detectors: identical action three or more times with no state-changing action be
 
 Mechanical waste is the first three. Edit thrash (same file edited six or more times) is reported as its own line but not costed and not counted as a finding — it flags ordinary iterative editing too often. `pipeline.py` uses the same basis, so your number is comparable to the Index.
 
+With 25 runs or more the audit also computes your **run-length curve**: runs ordered by step count, split into five buckets the same way the Index splits them, with each bucket's share of spend and its resolve rate. The curve is computed from your runs on your machine and only the five aggregate rows are written to the report — per-run rows never leave the audit.
+
+## Benchmark against the Index
+
+```bash
+python trajectory_audit.py ./your-traces --out ./traj-audit
+python benchmark.py traj-audit/trajectory-audit.json --org "Acme" --out benchmark.html
+```
+
+Writes one self-contained page: your spend by run length, the split between productive spend and
+the three kinds of waste, and where each of your numbers falls among the 29 public groups in the
+Index. Absolute dollars are not comparable between a local audit (priced from the traces' own
+cost) and the Index (estimated from characters), so every comparison is a share.
+
+If your traces carry no task outcomes the cost curve still works and the report says so plainly:
+without outcomes there is no resolve rate, and no way to tell whether the long runs bought
+anything. Adding a boolean per run — from CI, a test result, a merge — is the single highest-value
+thing you can do to your traces.
+
 ## Pipeline and the Index
 
 ```bash
@@ -57,13 +77,14 @@ python -m unittest discover -s tests -v     # or: python tests/test_smoke.py
 
 Standard library only; the pipeline report tests skip unless `duckdb` and `pyarrow` are installed.
 They cover the detectors, the spend audit's `--demo` and `--anon` paths, the shared
-mechanical-waste basis that makes a local audit comparable to the Index, and the checked-in
-report agreeing with the numbers quoted in this README, `report/notes.md` and `launch.md`.
+mechanical-waste basis that makes a local audit comparable to the Index, the run-length curve and
+the benchmark report built from it, and the checked-in report agreeing with the numbers quoted in
+this README, `report/notes.md` and `launch.md`.
 CI runs them on every push and pull request.
 
 ## Sharing results
 
-`--anon` on the spend audit hashes key, workspace, and project ids and drops owner emails. Send `audit/audit.json` or `traj-audit/trajectory-audit.json` via the form at metermaid.ai and get your resolve-by-length curve and your position against the Index.
+`--anon` on the spend audit hashes key, workspace, and project ids and drops owner emails. You can generate your own position against the Index locally with `benchmark.py` — nothing needs to be sent. If you would rather we read it, send `audit/audit.json` or `traj-audit/trajectory-audit.json` via the form at metermaid.ai and we will go through it with you.
 
 ## Data sources (edition 1)
 

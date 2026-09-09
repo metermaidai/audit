@@ -385,6 +385,57 @@ def detect(t: Traj, big_obs_chars: int) -> list[Hit]:
 # ---------------------------------------------------------------------------
 # Report
 # ---------------------------------------------------------------------------
+# Minimum runs before a per-quintile curve is meaningful. The Index requires 200 runs
+# per bucket; a local audit is one team's own traffic, so the bar is lower, but under
+# this the buckets are noise and we emit nothing rather than something misleading.
+MIN_RUNS_FOR_CURVE = 25
+
+
+def _ntile(items: list, k: int = 5) -> list[list]:
+    """Split into k buckets the way SQL ntile(k) does: earlier buckets take the remainder."""
+    base, rem = divmod(len(items), k)
+    out, i = [], 0
+    for b in range(k):
+        size = base + (1 if b < rem else 0)
+        out.append(items[i:i + size])
+        i += size
+    return out
+
+
+def curve(ts: list[Traj]) -> list[dict]:
+    """Cost and outcome by run-length quintile.
+
+    Same construction as the Index (pipeline.py): order runs by step count, ntile(5),
+    then report each bucket's share of spend and its resolve rate. Shares are within-group
+    ratios, so they stay comparable to the Index even though a local audit prices runs from
+    their own reported cost while the Index estimates from characters.
+
+    Only the five aggregate rows leave this function; per-run rows never go in the report.
+    """
+    ts = [t for t in ts if t.steps]
+    if len(ts) < MIN_RUNS_FOR_CURVE:
+        return []
+    ordered = sorted(ts, key=lambda t: len(t.steps))
+    total = sum(t.cost or 0 for t in ordered)
+    rows = []
+    for q, bucket in enumerate(_ntile(ordered), start=1):
+        if not bucket:
+            continue
+        cost = sum(t.cost or 0 for t in bucket)
+        res = [t.resolved for t in bucket if t.resolved is not None]
+        rows.append({
+            "q": q,
+            "n": len(bucket),
+            "steps_lo": len(bucket[0].steps),
+            "steps_hi": len(bucket[-1].steps),
+            "cost": cost,
+            "cost_share": (cost / total) if total else None,
+            "resolve": (sum(res) / len(res)) if res else None,
+            "resolved_per_dollar": (sum(res) / cost) if res and cost else None,
+        })
+    return rows
+
+
 def summarize(trajs: list[Traj], hits: list[Hit]) -> dict:
     by_sub = defaultdict(list)
     for t in trajs:
@@ -443,12 +494,14 @@ def summarize(trajs: list[Traj], hits: list[Hit]) -> dict:
             "sunk_cost": sunk, "sunk_share": (sunk / total) if total else 0,
             "by_detector": {k: {"trajs": v["trajs"], "share_of_trajs": v["trajs"] / len(ts), "cost": v["cost"]} for k, v in sorted(det.items())},
             "worst": [{k: v for k, v in asdict(h).items() if k != "idx"} for h in sorted(hs, key=lambda h: -h.wasted_cost)[:5]],
+            "curve": curve(ts),
         }
     total = sum(s["total_cost"] for s in subs.values())
     waste = sum(s["waste_cost"] for s in subs.values())
     sunk = sum(s["sunk_cost"] for s in subs.values())
     return {"submissions": subs, "trajectories": len(trajs), "total_cost": total, "waste_cost": waste,
-            "waste_share": (waste / total) if total else 0, "sunk_cost": sunk, "sunk_share": (sunk / total) if total else 0}
+            "waste_share": (waste / total) if total else 0, "sunk_cost": sunk, "sunk_share": (sunk / total) if total else 0,
+            "curve": curve(trajs)}
 
 
 def write(res: dict, unparsed: list[str], out: Path):
@@ -474,6 +527,13 @@ def write(res: dict, unparsed: list[str], out: Path):
         for d, v in s["by_detector"].items():
             L.append(f"- {d}: {v['share_of_trajs']:.0%} of runs, ${v['cost']:,.2f}")
         L.append(f"- runs over 2× the p90 step count: {s['runs_over_2x_p90_steps']}")
+        if s["curve"]:
+            L.append("\n| run-length fifth | steps | runs | share of cost | resolve |")
+            L.append("|---|---|---:|---:|---:|")
+            for c in s["curve"]:
+                share = f"{c['cost_share']:.0%}" if c["cost_share"] is not None else "—"
+                res = f"{c['resolve']:.0%}" if c["resolve"] is not None else "—"
+                L.append(f"| {c['q']} | {c['steps_lo']}–{c['steps_hi']} | {c['n']} | {share} | {res} |")
         if s["resolve_rate"] is not None:
             rf = s["resolve_rate_with_findings"]; rc = s["resolve_rate_without_findings"]
             parts = ([f"{rf:.0%} for runs with findings"] if rf is not None else []) + \
