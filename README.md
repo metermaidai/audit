@@ -14,6 +14,7 @@ Open-source tools behind [the Agent Waste Index](https://metermaid.ai/agent-wast
 | `ratecard.json` | Per-model prices used by the spend audit. Carries a `price_version` and a `verified_on` date per model; the audit prints the version in every report and lists any price it used that is unverified or older than 90 days. Check those against the provider's pricing page before sharing an audit. |
 | `keymap.example.json` | Map key / project ids to agents and owners. Copy to `keymap.json`. |
 | `share.py` | Builds `share.json`, the only audit output meant to leave the machine: allowlisted aggregates with pseudonymised ids. Used by `--share` on both auditors. |
+| `supported.json` | The claims ledger: what these tools do today, and the phrases the README, launch copy and website must not use because the thing does not exist. The tests enforce it against this repository's copy. |
 
 ## Spend audit
 
@@ -69,6 +70,15 @@ python pipeline.py ingest-json samples/*.json   # parse raw rows to test a new f
 Registered datasets, formats, and end-of-run rules live in `REGISTRY` and the parsers at the top of `pipeline.py`. Edition 1 covers 341,054 runs from 11 datasets — 29 dataset/model/scaffold groups, 16 model labels, 4 scaffold families. The report is in `report/`, with method, caveats and retractions in [`report/notes.md`](report/notes.md).
 
 Headline findings are in the Index; method, caveats and retractions are in [`report/notes.md`](report/notes.md) — read those before quoting anything. Dollars in the Index are estimated (characters/4, Sonnet-class rates, with and without cached input pricing); quote the percentages.
+
+## What is supported today
+
+`supported.json` is the list. In one line: spend audit against the **Anthropic** and **OpenAI**
+admin APIs, read-only, from your machine; trajectory audit over **SWE-agent**, **mini-swe-agent**,
+**OpenHands** and generic **message lists**; outputs are local markdown and JSON reports,
+`benchmark.html`, and `share.json`. Nothing else. If a page or a post names another provider,
+trace source, outcome source or product feature, it is describing something that does not exist
+yet, and the test suite fails on this repository's copy when that happens.
 
 ## Tests
 

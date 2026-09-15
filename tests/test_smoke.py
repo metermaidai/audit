@@ -672,5 +672,53 @@ class TestPublishedIndexMatchesCode(unittest.TestCase):
                          "launch copy still quotes the retracted pilot as a current finding")
 
 
+class TestClaimsLedger(unittest.TestCase):
+    """supported.json says what the tools do. Copy in this repository may not claim more.
+    The website is meant to run the same check against its pages."""
+
+    COPY = ["README.md", "launch.md"]
+
+    @classmethod
+    def setUpClass(cls):
+        cls.ledger = json.loads((ROOT / "supported.json").read_text(encoding="utf-8"))
+
+    def test_repository_copy_claims_nothing_the_code_does_not_do(self):
+        phrases = [(group, p) for group, lst in self.ledger["never_claim"].items()
+                   if not group.startswith("_") for p in lst]
+        offences = []
+        for name in self.COPY:
+            for n, line in enumerate((ROOT / name).read_text(encoding="utf-8").splitlines(), 1):
+                low = line.lower()
+                for group, p in phrases:
+                    if p.lower() in low:
+                        offences.append(f"{name}:{n} [{group}] {p!r}: {line.strip()[:100]}")
+        self.assertEqual(offences, [], "copy claims something supported.json says does not exist:\n" + "\n".join(offences))
+
+    def test_readme_names_every_supported_provider_and_format(self):
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        for p in self.ledger["spend_audit"]["providers"]:
+            self.assertIn(p, readme)
+        for f in self.ledger["trajectory_audit"]["formats"]:
+            self.assertIn(f, readme)
+        for o in self.ledger["outputs"]:
+            self.assertIn(o.split()[0] if o.endswith((".html", ".json")) else o, readme)
+
+    def test_ledger_matches_the_spend_audit_connectors(self):
+        """The providers the ledger lists are exactly the ones the spend audit can fetch."""
+        audit = load("metermaid_audit")
+        fetchers = {n.removeprefix("fetch_").removesuffix("_usage") for n in dir(audit)
+                    if n.startswith("fetch_") and n.endswith("_usage")}
+        self.assertEqual(fetchers, {p.lower() for p in self.ledger["spend_audit"]["providers"]})
+
+    def test_ledger_never_claim_phrases_are_not_in_supported(self):
+        """A phrase cannot be both supported and forbidden."""
+        supported = json.dumps({k: v for k, v in self.ledger.items() if k != "never_claim"}).lower()
+        for group, lst in self.ledger["never_claim"].items():
+            if group.startswith("_"):
+                continue
+            for p in lst:
+                self.assertNotIn(p.lower(), supported, f"{p!r} is listed as both supported and never_claim")
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

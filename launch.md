@@ -48,7 +48,9 @@ into five equal-count buckets by step count. The longest bucket takes 40% of est
 across the whole set (21–72% by group, median 50%) and is the worst bucket per task solved:
 resolved-per-dollar is lowest in the longest quintile in 13 of the 15 groups that carry resolve
 labels, by 8× to 285×. Resolve rate itself falls from the shortest to the longest quintile in 14
-of 15. Whatever else you tune, a step budget is the lever with the most money behind it.
+of 15. Whatever else you tune, measure what the marginal step buys before you set a cap: that is
+where the money sits, and a cap still pays for every step up to the cap, so the cap itself
+needs its own test.
 
 **Caveats.** No public dataset here carries per-run cost, so dollars are estimated from characters
 at Sonnet-class rates — read the percentages. Task mix differs by group, so resolve rates are
