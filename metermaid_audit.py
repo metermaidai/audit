@@ -600,8 +600,16 @@ def main():
     ap.add_argument("--ratecard", default=str(HERE / "ratecard.json"))
     ap.add_argument("--keymap", default=str(HERE / "keymap.json"))
     ap.add_argument("--demo", action="store_true", help="synthetic data; no API keys needed")
-    ap.add_argument("--anon", action="store_true", help="hash key/workspace/project ids and drop owner emails so the audit is safe to share")
+    ap.add_argument("--anon", action="store_true", help="hash key/workspace/project ids and drop owner emails in the local report")
+    ap.add_argument("--share", action="store_true",
+                    help="also write share.json: allowlisted aggregates and findings with agent and key ids pseudonymised. "
+                         "Implies --anon. audit.json stays local; share.json is the file to send.")
+    ap.add_argument("--salt", default=None,
+                    help="salt for --anon and --share pseudonyms. Fix it to make ids comparable across audits; "
+                         "omit for a one-off random salt. Never share the salt.")
     args = ap.parse_args()
+    if args.share:
+        args.anon = True
 
     rc = RateCard(Path(args.ratecard))
     keymap = json.loads(Path(args.keymap).read_text()) if Path(args.keymap).exists() else {}
@@ -648,9 +656,9 @@ def main():
             invoiced["openai"] = fetch_openai_cost(okey, start, end)
     if not rows:
         sys.exit("No usage rows returned for the window.")
+    salt = args.salt or __import__("secrets").token_hex(8)
     if args.anon:
-        import hashlib, secrets
-        salt = secrets.token_hex(8)
+        import hashlib
         h = lambda v: v[:4] + "_" + hashlib.sha256((salt + v).encode()).hexdigest()[:8]
         anon_map = {}
         for r in rows + hourly:
@@ -675,6 +683,12 @@ def main():
         print(f"  rate card {rc.price_version}: {len(res['stale_prices'])} price(s) used here are unverified or older than "
               f"{rc.stale_after_days} days ({names}); see the report", file=sys.stderr)
     write_report(res, invoiced, Path(args.out))
+    if args.share:
+        import share
+        payload = share.spend_share(res, invoiced, salt)
+        path = share.write_share(payload, Path(args.out))
+        print("\n" + share.preview(payload))
+        print(f"Wrote {path}. audit.json and audit.md stay on this machine; share.json is the file to send.")
 
 
 if __name__ == "__main__":

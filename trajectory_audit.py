@@ -623,6 +623,12 @@ def main():
     ap.add_argument("--price-out", type=float, default=15.0, help="USD per 1M output tokens when no cost is reported")
     ap.add_argument("--big-obs-chars", type=int, default=20_000)
     ap.add_argument("--demo", action="store_true")
+    ap.add_argument("--share", action="store_true",
+                    help="also write share.json: the aggregates only, ids pseudonymised, no commands or run ids. "
+                         "trajectory-audit.json stays local; share.json is the file to send.")
+    ap.add_argument("--salt", default=None,
+                    help="salt for the pseudonyms in share.json. Fix it to make ids comparable across audits; "
+                         "omit for a one-off random salt. Never share the salt.")
     a = ap.parse_args()
 
     unparsed: list[str] = []
@@ -646,7 +652,14 @@ def main():
     for t in trajs:
         price(t, a.price_in, a.price_out)
     hits = [h for t in trajs for h in detect(t, a.big_obs_chars)]
-    write(summarize(trajs, hits), unparsed, Path(a.out))
+    res = summarize(trajs, hits)
+    write(res, unparsed, Path(a.out))
+    if a.share:
+        import share
+        payload = share.trajectory_share(res, a.salt or share.new_salt())
+        path = share.write_share(payload, Path(a.out))
+        print("\n" + share.preview(payload))
+        print(f"Wrote {path}. trajectory-audit.json and trajectory-audit.md stay on this machine; share.json is the file to send.")
 
 
 if __name__ == "__main__":
