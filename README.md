@@ -8,6 +8,7 @@ Open-source tools behind [the Agent Waste Index](https://metermaid.ai/agent-wast
 |---|---|
 | `metermaid_audit.py` | Spend audit against the Anthropic and OpenAI admin APIs (read-only). Prices over-tier models, missing prompt caching, batch-eligible jobs, spend spikes, unowned keys. `--anon` hashes every id so the output is safe to share. |
 | `trajectory_audit.py` | Trace-level audit over agent trajectory files (SWE-agent, mini-swe-agent, OpenHands, message lists). Loops, blind retries, oversized tool output, edit thrash, runs that ended without a result. |
+| `compare.py` | Baseline against candidate fixes on the same tasks, with the combined configuration as the authoritative number: paired cohorts, every attempt counted, unknown outcomes kept unknown, a quality gate, netted overhead, a bootstrap interval, and no adding of individual fixes. |
 | `benchmark.py` | Turns one trajectory audit into a report positioned against the Index: cost by run length, the four-bucket split, and where each number sits among the Index's 29 public groups. Reads only the aggregates, writes one self-contained HTML page. |
 | `pipeline.py` | The scaled pipeline: streams trajectory datasets from Hugging Face, parses nine formats, detects at ingest, writes Parquet, reports with DuckDB. Produces the Index. |
 | `hf_pull.py`, `hf_batch.py` | Earlier per-file tooling for pulling Hugging Face trajectory datasets and sampling raw rows for new parsers. `pipeline.py` supersedes them for analysis. |
@@ -58,6 +59,29 @@ the outcomes came from. The Intake section counts records parsed, files not pars
 attempt ids dropped. `attempts.jsonl` and `tasks.jsonl` are written next to the report; `--events`
 adds `events.jsonl` with one row per step (action, sizes and hashes, not the tool output). All of
 these stay local.
+
+## Compare a fix against the baseline
+
+Run the trajectory audit once on the workflow as it was and once per configuration under test,
+then:
+
+```bash
+python compare.py --baseline audit-before \
+                  --candidate cache=audit-cache --candidate trim=audit-trim \
+                  --combined both=audit-both --overhead cache=40 --out compare
+```
+
+Arms are compared on the tasks present in every arm, paired by task id, and coverage is printed.
+Cost counts every attempt at a task. Success rate is over tasks with a known outcome and the
+unknown count sits beside it; no successes gives an undefined ratio, not zero. A candidate whose
+success rate falls more than `--quality-tolerance` points (default 2) is rejected however much it
+saves; `--overhead` nets out what the fix costs to run; a paired bootstrap gives a 90% interval on
+the cost change; a cohort under `--min-tasks` (default 20) is inconclusive. Each arm ends as
+verified, inconclusive or rejected with the reasons listed.
+
+Individual fixes are never added. The combined arm is the claim; the naive sum of the individual
+arms is printed beside it only to make the overlap visible. Latency is not in trajectory records
+and is reported as such.
 
 ## Benchmark against the Index
 
