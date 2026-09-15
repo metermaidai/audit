@@ -30,6 +30,21 @@ python metermaid_audit.py --days 30 --anon
 
 Reads usage (daily for the window, hourly for the last 7 days) and cost reports, prices usage from `ratecard.json`, and writes `audit/audit.md` and `audit/audit.json`. Each finding's dollar figure is labelled *observed* or *modeled* with the assumption it rests on, and the headline is a range (largest single finding to the capped sum) because findings on the same key overlap and are never added up. No keys? `--demo` runs on synthetic data.
 
+### Check the cost-report unit against your own usage
+
+The provider-reported cost line rests on an assumption about the unit each cost endpoint
+returns (Anthropic: a decimal string in cents; OpenAI: dollars). Settle it against your own
+numbers in one command:
+
+```bash
+ANTHROPIC_ADMIN_KEY=sk-ant-admin-... python metermaid_audit.py --probe
+```
+
+It fetches the last three full days of usage and cost, prices the usage with the rate card,
+reads the cost report both ways, and says which reading matches, with the raw rows printed
+(ids stripped) so the response shape is on record. Paste the output into an issue if it says
+CONTRADICTS. `--days N` widens the window up to 7.
+
 ## Trajectory audit
 
 ```bash

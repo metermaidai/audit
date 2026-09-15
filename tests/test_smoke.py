@@ -332,6 +332,34 @@ class TestOpportunityAccounting(unittest.TestCase):
         self.assertIn("- Assumes:", md)
 
 
+class TestCostProbe(unittest.TestCase):
+    """--probe settles the cost-report unit against usage priced from the rate card."""
+
+    def test_verdict_picks_the_reading_that_matches_usage(self):
+        audit = load("metermaid_audit")
+        v = audit.probe_verdict(estimate=120.0, raw_sum=11_800.0, assumed_divisor=100.0)   # cents
+        self.assertEqual(v["verdict"], "minor")
+        v = audit.probe_verdict(estimate=120.0, raw_sum=118.0, assumed_divisor=100.0)      # dollars
+        self.assertEqual(v["verdict"], "major")
+        v = audit.probe_verdict(estimate=120.0, raw_sum=5.0, assumed_divisor=100.0)        # matches neither
+        self.assertEqual(v["verdict"], "inconclusive")
+        v = audit.probe_verdict(estimate=0.0, raw_sum=5.0, assumed_divisor=100.0)
+        self.assertEqual(v["verdict"], "inconclusive")
+
+    def test_probe_refuses_without_keys_and_never_needs_them_for_help(self):
+        env = {k: v for k, v in os.environ.items() if not k.endswith("_ADMIN_KEY")}
+        r = subprocess.run([sys.executable, str(ROOT / "metermaid_audit.py"), "--probe"], capture_output=True, text=True, env=env)
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("ADMIN_KEY", r.stderr + r.stdout)
+
+    def test_raw_sample_rows_strip_ids(self):
+        audit = load("metermaid_audit")
+        audit.COST_RAW_SAMPLES.clear()
+        audit._sample_cost_row("anthropic", {"amount": "1234", "currency": "USD", "workspace_id": "wrkspc_secret", "api_key_id": "apikey_secret"})
+        row = audit.COST_RAW_SAMPLES["anthropic"][0]
+        self.assertEqual(row, {"amount": "1234", "currency": "USD"})
+
+
 class TestDetectors(unittest.TestCase):
     """The detectors trajectory_audit.py advertises, on hand-built trajectories."""
 

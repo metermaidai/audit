@@ -207,6 +207,14 @@ COST_REPORT_BASIS = {
     "openai": "costs amount.value read as USD",
 }
 COST_CURRENCIES_SEEN: dict[str, set] = defaultdict(set)
+COST_RAW_SUM: dict[str, float] = defaultdict(float)          # amounts as the API returned them, before any unit conversion
+COST_RAW_SAMPLES: dict[str, list] = defaultdict(list)        # a few raw result rows with ids stripped, for --probe
+_ID_KEYS = ("api_key_id", "workspace_id", "project_id", "organization_id", "user_id", "line_item")
+
+
+def _sample_cost_row(provider: str, res: dict) -> None:
+    if len(COST_RAW_SAMPLES[provider]) < 3:
+        COST_RAW_SAMPLES[provider].append({k: v for k, v in res.items() if k not in _ID_KEYS})
 
 
 def fetch_anthropic_cost(admin_key: str, start: datetime, end: datetime) -> float:
@@ -223,8 +231,10 @@ def fetch_anthropic_cost(admin_key: str, start: datetime, end: datetime) -> floa
             for res in bucket.get("results", []):
                 amt = res.get("amount")
                 COST_CURRENCIES_SEEN["anthropic"].add(str(res.get("currency") or "unstated"))
+                _sample_cost_row("anthropic", res)
                 # amount is documented as a decimal string in the lowest currency unit (cents)
                 try:
+                    COST_RAW_SUM["anthropic"] += float(amt)
                     invoiced += float(amt) / 100.0
                 except (TypeError, ValueError):
                     pass
@@ -287,7 +297,9 @@ def fetch_openai_cost(admin_key: str, start: datetime, end: datetime) -> float:
             for res in bucket.get("results", []):
                 amt = (res.get("amount") or {}).get("value")
                 COST_CURRENCIES_SEEN["openai"].add(str((res.get("amount") or {}).get("currency") or "unstated"))
+                _sample_cost_row("openai", res)
                 try:
+                    COST_RAW_SUM["openai"] += float(amt)
                     invoiced += float(amt)
                 except (TypeError, ValueError):
                     pass
@@ -296,6 +308,81 @@ def fetch_openai_cost(admin_key: str, start: datetime, end: datetime) -> float:
         else:
             break
     return invoiced
+
+
+# ---------------------------------------------------------------------------
+# Probe: settle the cost-report unit against the provider's own usage numbers
+# ---------------------------------------------------------------------------
+def probe_verdict(estimate: float, raw_sum: float, assumed_divisor: float) -> dict:
+    """Compare the usage-priced estimate for a window with the cost report's raw total read
+    two ways (as major units, and divided by assumed_divisor). The reading closer to the
+    estimate is the verdict. Both readings and the ratios are returned so the reader can
+    disagree."""
+    as_major = raw_sum
+    as_minor = raw_sum / assumed_divisor if assumed_divisor else raw_sum
+    if estimate <= 0 or raw_sum <= 0:
+        return {"verdict": "inconclusive", "reason": "no spend in the window on one side or both",
+                "estimate": estimate, "raw_sum": raw_sum, "read_as_major": as_major, "read_as_minor": as_minor}
+    ratio_major, ratio_minor = as_major / estimate, as_minor / estimate
+    closer = "minor" if abs(1 - ratio_minor) < abs(1 - ratio_major) else "major"
+    best = ratio_minor if closer == "minor" else ratio_major
+    verdict = closer if 0.5 <= best <= 2.0 else "inconclusive"
+    return {"verdict": verdict, "closer_reading": closer, "estimate": estimate, "raw_sum": raw_sum,
+            "read_as_major": as_major, "read_as_minor": as_minor,
+            "ratio_major_to_estimate": ratio_major, "ratio_minor_to_estimate": ratio_minor,
+            "reason": ("the closer reading is within 2x of the usage-priced estimate" if verdict != "inconclusive"
+                       else "neither reading is within 2x of the usage-priced estimate; check the rate card and the window")}
+
+
+def probe(rc: "RateCard", akey: str | None, okey: str | None, days: int) -> dict:
+    """Fetch the last `days` full days of usage and cost from each provider, price the usage
+    with the rate card, and say which unit the cost report is in. Prints the raw sample rows
+    with ids stripped so the response shape is on record."""
+    end = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    start = end - timedelta(days=days)
+    out = {"window": {"start": _iso(start), "end": _iso(end), "days": days}, "price_version": rc.price_version, "providers": {}}
+    for provider, key, fetch_usage, fetch_cost, divisor, assumption in (
+            ("anthropic", akey, fetch_anthropic_usage, fetch_anthropic_cost, 100.0, COST_REPORT_BASIS["anthropic"]),
+            ("openai", okey, fetch_openai_usage, fetch_openai_cost, 1.0, COST_REPORT_BASIS["openai"])):
+        if not key:
+            continue
+        rows = fetch_usage(key, start, end, "1d")
+        for r in rows:
+            r.est_cost, r.tier = rc.price(r)
+        estimate = sum(r.est_cost for r in rows)
+        fetch_cost(key, start, end)
+        v = probe_verdict(estimate, COST_RAW_SUM[provider], divisor)
+        out["providers"][provider] = {
+            "assumption_in_code": assumption,
+            "usage_rows": len(rows), "models_seen": sorted({r.model for r in rows}),
+            "unknown_models": sorted(rc.unknown),
+            "currencies_seen": sorted(COST_CURRENCIES_SEEN.get(provider, ())),
+            "raw_sample_rows": COST_RAW_SAMPLES.get(provider, []),
+            **v,
+        }
+    return out
+
+
+def print_probe(res: dict) -> None:
+    w = res["window"]
+    print(f"# cost-report probe: {w['start'][:10]} to {w['end'][:10]} ({w['days']} full days), rate card {res['price_version']}\n")
+    for p, r in res["providers"].items():
+        print(f"## {p}")
+        print(f"- code assumes: {r['assumption_in_code']}")
+        print(f"- usage: {r['usage_rows']} daily rows across {len(r['models_seen'])} model(s); priced at ${r['estimate']:,.2f}"
+              + (f"; unlisted models priced at tier reference: {', '.join(r['unknown_models'])}" if r["unknown_models"] else ""))
+        print(f"- cost report: raw total {r['raw_sum']:,.2f}; currencies seen: {', '.join(r['currencies_seen']) or 'none'}")
+        print(f"- read as major units: ${r['read_as_major']:,.2f}; read as minor units: ${r['read_as_minor']:,.2f}")
+        if r["verdict"] == "inconclusive":
+            print(f"- verdict: INCONCLUSIVE — {r['reason']}")
+        else:
+            unit = "minor units (cents): keep dividing by 100" if r["verdict"] == "minor" else "major units (dollars): do NOT divide"
+            ok = (r["verdict"] == "minor") == (p == "anthropic")
+            print(f"- verdict: {unit}; ratio to estimate {r['ratio_minor_to_estimate' if r['verdict'] == 'minor' else 'ratio_major_to_estimate']:.2f}"
+                  f" — {'matches' if ok else 'CONTRADICTS'} what the code assumes")
+        for i, row in enumerate(r["raw_sample_rows"], 1):
+            print(f"- raw row {i} (ids stripped): {json.dumps(row, default=str)}")
+        print()
 
 
 # ---------------------------------------------------------------------------
@@ -664,6 +751,9 @@ def main():
     ap.add_argument("--share", action="store_true",
                     help="also write share.json: allowlisted aggregates and findings with agent and key ids pseudonymised. "
                          "Implies --anon. audit.json stays local; share.json is the file to send.")
+    ap.add_argument("--probe", action="store_true",
+                    help="fetch the last few full days of usage and cost from each provider, price the usage, and report "
+                         "which unit the cost report is in. Prints raw sample rows with ids stripped. Writes probe.json. No report.")
     ap.add_argument("--salt", default=None,
                     help="salt for --anon and --share pseudonyms. Fix it to make ids comparable across audits; "
                          "omit for a one-off random salt. Never share the salt.")
@@ -672,6 +762,16 @@ def main():
         args.anon = True
 
     rc = RateCard(Path(args.ratecard))
+    if args.probe:
+        akey, okey = os.environ.get("ANTHROPIC_ADMIN_KEY"), os.environ.get("OPENAI_ADMIN_KEY")
+        if not (akey or okey):
+            sys.exit("Set ANTHROPIC_ADMIN_KEY and/or OPENAI_ADMIN_KEY to probe the cost reports")
+        res = probe(rc, akey, okey, days=min(args.days, 7) if args.days != 30 else 3)
+        Path(args.out).mkdir(parents=True, exist_ok=True)
+        (Path(args.out) / "probe.json").write_text(json.dumps(res, indent=2, default=str), encoding="utf-8")
+        print_probe(res)
+        print(f"Wrote {Path(args.out) / 'probe.json'}. Keys were not transmitted anywhere but the provider.")
+        return
     keymap = json.loads(Path(args.keymap).read_text()) if Path(args.keymap).exists() else {}
     end = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
     start = end - timedelta(days=args.days)
