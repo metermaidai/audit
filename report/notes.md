@@ -102,3 +102,11 @@ were estimates on the basis above and should not be quoted at all.
 - The step-quintile tables require at least 200 runs per bucket, so small groups drop out.
 - The SWE-bench leaderboard S3 bucket and Princeton HAL traces are access-restricted and are not
   in edition 1.
+- **Parallel tool calls were under-read in edition 1.** The message parser used to attach only
+  the first tool result of an assistant turn and drop the rest, so in a turn that issued several
+  calls at once the later results — and any oversized output or error message they carried —
+  were invisible to the detectors. Fixed in the code after edition 1 shipped; the published
+  tables were not regenerated. Most edition 1 scaffolds issue one call per turn, so the
+  aggregate is probably close, but the blind-retry and big-output rates for any group whose
+  scaffold issues parallel calls are lower bounds. Edition 1.1 will re-run the sweep with the
+  fix and record the difference here.

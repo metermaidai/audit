@@ -191,6 +191,95 @@ class TestDetectors(unittest.TestCase):
         self.assertNotIn("T06", found)
 
 
+def parallel_openai_turns(n_turns: int = 3, big: int = 30_000) -> list[dict]:
+    """n assistant turns, each issuing the same two tool calls, each answered by two
+    role=tool messages delivered in reverse order. The second call's result carries an
+    error plus an oversized payload; the first only an error."""
+    msgs = []
+    for i in range(n_turns):
+        msgs.append({"role": "assistant", "content": "", "tool_calls": [
+            {"id": f"a{i}", "type": "function", "function": {"name": "bash", "arguments": "{\"cmd\": \"pytest tests/a.py\"}"}},
+            {"id": f"b{i}", "type": "function", "function": {"name": "bash", "arguments": "{\"cmd\": \"pytest tests/b.py\"}"}}]})
+        msgs.append({"role": "tool", "tool_call_id": f"b{i}", "content": "Error: boom B " + "x" * big})
+        msgs.append({"role": "tool", "tool_call_id": f"a{i}", "content": "Error: boom A"})
+    msgs += [{"role": "assistant", "content": "submit"}, {"role": "user", "content": "done"}]
+    return msgs
+
+
+def parallel_anthropic_turn() -> list[dict]:
+    """One assistant turn with two tool_use blocks, answered by one user message whose
+    tool_result blocks arrive in reverse order and name their calls by tool_use_id."""
+    return [
+        {"role": "assistant", "content": [
+            {"type": "text", "text": "Checking both."},
+            {"type": "tool_use", "id": "u1", "name": "read", "input": {"path": "a.py"}},
+            {"type": "tool_use", "id": "u2", "name": "read", "input": {"path": "b.py"}}]},
+        {"role": "user", "content": [
+            {"type": "tool_result", "tool_use_id": "u2", "content": "B" * 25_000},
+            {"type": "tool_result", "tool_use_id": "u1", "content": [{"type": "text", "text": "small a"}]}]},
+        {"role": "assistant", "content": "submit"}, {"role": "user", "content": "done"},
+    ]
+
+
+class TestParallelToolCalls(unittest.TestCase):
+    """Both message parsers used to attach only the first tool result of a turn and drop
+    the rest, so a parallel-call turn lost the oversized outputs and error messages the
+    detectors look for. Every call must become its own step with its own observation."""
+
+    def test_trajectory_audit_keeps_every_result_and_matches_by_id(self):
+        ta = load("trajectory_audit")
+        t = ta.parse_any({"messages": parallel_openai_turns()}, "r", "sub")
+        self.assertEqual(len(t.steps), 7, "3 turns x 2 calls + submit")
+        # results arrived b-then-a; ids must route them to the right call regardless of order
+        for i in range(3):
+            self.assertIn("boom A", t.steps[2 * i].observation)
+            self.assertNotIn("x" * 100, t.steps[2 * i].observation)
+            self.assertIn("boom B", t.steps[2 * i + 1].observation)
+            self.assertGreater(len(t.steps[2 * i + 1].observation), 30_000)
+        t = ta.parse_any({"messages": parallel_anthropic_turn()}, "r", "sub")
+        self.assertEqual(len(t.steps), 3)
+        self.assertEqual(t.steps[0].observation, "small a")
+        self.assertEqual(len(t.steps[1].observation), 25_000)
+
+    def test_trajectory_audit_detects_the_bloat_a_dropped_result_used_to_hide(self):
+        with tempfile.TemporaryDirectory() as td:
+            res = run_traj(Path(td), {"r": {"messages": parallel_openai_turns()}})
+        sub = list(res["submissions"].values())[0]
+        self.assertEqual(sub["mean_steps"], 7)
+        self.assertIn("T03", " ".join(sub["by_detector"]), "oversized second result was not detected")
+
+    def test_pipeline_keeps_every_result_and_matches_by_id(self):
+        pl = load("pipeline")
+        steps = pl.parse_messages(parallel_openai_turns())
+        self.assertEqual(len(steps), 7)
+        for i in range(3):
+            self.assertIn("boom A", steps[2 * i].obs)
+            self.assertGreater(len(steps[2 * i + 1].obs), 30_000)
+        steps = pl.parse_messages(parallel_anthropic_turn())
+        self.assertEqual(len(steps), 3)
+        self.assertEqual(steps[0].obs, "small a")
+        self.assertEqual(len(steps[1].obs), 25_000)
+        run = pl.analyze_run(pl.parse_messages(parallel_openai_turns()), None)
+        self.assertGreaterEqual(run["bloat_obs"], 3, "pipeline did not see the oversized results")
+
+    def test_results_without_ids_attach_in_order_and_nothing_is_dropped(self):
+        pl = load("pipeline")
+        msgs = [{"role": "assistant", "content": [
+                    {"type": "tool_use", "name": "bash", "input": {"cmd": "ls"}},
+                    {"type": "tool_use", "name": "bash", "input": {"cmd": "pwd"}}]},
+                {"role": "tool", "content": "first"}, {"role": "tool", "content": "second"},
+                {"role": "tool", "content": "third, with nowhere to go"}]
+        steps = pl.parse_messages(msgs)
+        self.assertEqual([s.obs for s in steps], ["first", "second\nthird, with nowhere to go"])
+
+    def test_single_call_turns_are_unchanged(self):
+        """The common single-call shape parses exactly as before."""
+        ta = load("trajectory_audit")
+        t = ta.parse_any(submit_run(), "r", "sub")
+        self.assertEqual([(s.action, s.observation) for s in t.steps],
+                         [("open foo.py", "ok"), ("submit", "done")])
+
+
 class TestComparabilityWithIndex(unittest.TestCase):
     """trajectory_audit.py must count what pipeline.py counts, or a local audit
     cannot be compared against the published Index — which the README invites."""
