@@ -96,12 +96,44 @@ def parse_sweagent(d: dict, tid: str, sub: str) -> Traj | None:
                 info.get("exit_status"))
 
 
+def _attach(pending: list[dict], results: list[tuple]) -> None:
+    """Attach observations to the calls of the current assistant turn, in place.
+
+    A result naming a call id goes to that call; otherwise to the first call without an
+    observation; otherwise it is appended to the last call. Nothing is dropped: the second
+    and later results of a parallel-call turn used to vanish, and with them the oversized
+    outputs and error messages the detectors look for. pipeline.py has the same rule.
+    """
+    for rid, text in results:
+        target = None
+        if rid is not None:
+            target = next((c for c in pending if c["id"] is not None and c["id"] == rid), None)
+        if target is None:
+            target = next((c for c in pending if c["obs"] is None), None)
+        if target is None:
+            if not pending or rid is None and not text:
+                continue
+            target = pending[-1]
+        target["obs"] = text if target["obs"] is None else f"{target['obs']}\n{text}"
+
+
 def parse_messages(msgs: list, tid: str, sub: str, info: dict | None, fmt: str) -> Traj | None:
-    """Assistant message -> action; following user/tool message -> observation."""
+    """Each tool call in an assistant turn -> one action; each following user/tool result -> its observation.
+
+    One assistant turn may issue several calls (Anthropic tool_use blocks or OpenAI tool_calls),
+    answered by several tool_result blocks or several role=tool messages. Every call becomes its
+    own step, the same as pipeline.py, so a local audit stays comparable to the Index.
+    """
     if not isinstance(msgs, list) or not msgs:
         return None
     steps: list[Step] = []
-    pending = None
+    pending: list[dict] = []      # calls of the current assistant turn: {action, id, obs}
+
+    def flush():
+        for c in pending:
+            steps.append(Step(c["action"], c["obs"] or "", 0))
+        pending.clear()
+
     for m in msgs:
         if not isinstance(m, dict):
             continue
@@ -111,8 +143,8 @@ def parse_messages(msgs: list, tid: str, sub: str, info: dict | None, fmt: str) 
         content = m.get("content")
         if content is None:
             content = m.get("text") if m.get("text") is not None else m.get("message")
-        tool_uses = []
-        tool_results = []
+        tool_uses = []          # (id, action)
+        tool_results = []       # (tool_use_id, text)
         if isinstance(content, list):  # Anthropic-style blocks
             texts = []
             for c in content:
@@ -120,33 +152,36 @@ def parse_messages(msgs: list, tid: str, sub: str, info: dict | None, fmt: str) 
                     texts.append(str(c)); continue
                 ct = c.get("type")
                 if ct == "tool_use":
-                    tool_uses.append({"name": c.get("name"), "input": c.get("input")})
+                    tool_uses.append((c.get("id"), json.dumps({"name": c.get("name"), "input": c.get("input")},
+                                                              sort_keys=True, default=str)))
                 elif ct == "tool_result":
                     rc = c.get("content")
                     if isinstance(rc, list):
                         rc = " ".join(str(x.get("text", "")) if isinstance(x, dict) else str(x) for x in rc)
-                    tool_results.append(str(rc or ""))
+                    tool_results.append((c.get("tool_use_id"), str(rc or "")))
                 else:
                     texts.append(str(c.get("text") or c.get("content") or ""))
-            content = " ".join(texts + tool_results)
+            content = " ".join(texts + [t for _, t in tool_results])
         content = str(content or "")
         if tool_results and role == "user":
             role = "tool"
         if role == "assistant":
-            if pending is not None:
-                steps.append(Step(pending, "", 0))
+            flush()
             tcs = m.get("tool_calls")
             if tool_uses:
-                pending = json.dumps(tool_uses, sort_keys=True, default=str)
+                calls = tool_uses
             elif tcs:
-                pending = json.dumps([tc.get("function", tc) for tc in tcs], sort_keys=True, default=str)
+                calls = [(tc.get("id") if isinstance(tc, dict) else None,
+                          json.dumps(tc.get("function", tc) if isinstance(tc, dict) else tc, sort_keys=True, default=str))
+                         for tc in tcs]
             else:
-                pending = extract_action(content)
-        elif role in ("user", "tool") and pending is not None:
-            steps.append(Step(pending, content, 0))
-            pending = None
-    if pending is not None:
-        steps.append(Step(pending, "", 0))
+                calls = [(None, extract_action(content))]
+            for cid, action in calls:
+                pending.append({"action": action, "id": cid, "obs": None})
+        elif role in ("user", "tool") and pending:
+            results = tool_results if tool_results else [(m.get("tool_call_id"), content)]
+            _attach(pending, results)
+    flush()
     if not steps:
         return None
     ms = _model_stats(info or {})

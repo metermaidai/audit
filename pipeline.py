@@ -116,14 +116,18 @@ def _tool_calls(m: dict):
                         args = json.loads(args)
                     except Exception:
                         pass
-                out.append((name, args))
+                out.append((name, args, tc.get("id")))
             if out:
                 return out
     return []
 
 
 def _content_text(content):
-    """Flatten content; return (text, tool_uses, tool_results)."""
+    """Flatten content; return (text, tool_uses, tool_results).
+
+    tool_uses are (name, input, id) and tool_results are (tool_use_id, text), one entry per
+    block, so a turn that issued several calls can have each result attached to its own call.
+    """
     tool_uses, tool_results, texts = [], [], []
     if isinstance(content, list):
         for c in content:
@@ -131,17 +135,17 @@ def _content_text(content):
                 texts.append(str(c)); continue
             ct = c.get("type")
             if ct == "tool_use":
-                tool_uses.append((c.get("name") or "", c.get("input")))
+                tool_uses.append((c.get("name") or "", c.get("input"), c.get("id")))
             elif ct == "tool_result":
                 rc = c.get("content")
                 if isinstance(rc, list):
                     rc = " ".join(str(x.get("text", "")) if isinstance(x, dict) else str(x) for x in rc)
-                tool_results.append(str(rc or ""))
+                tool_results.append((c.get("tool_use_id"), str(rc or "")))
             else:
                 texts.append(str(c.get("text") or c.get("content") or ""))
     elif content is not None and content != "None":
         texts.append(str(content))
-    return " ".join(texts + tool_results), tool_uses, tool_results
+    return " ".join(texts + [t for _, t in tool_results]), tool_uses, tool_results
 
 
 XML_FN = re.compile(r"<function=([^>\s]+)>(.*?)</function>", re.S)
@@ -181,10 +185,38 @@ def norm_action(tool: str, args) -> str:
     return re.sub(r"\s+", " ", f"{tool} {args}".strip())
 
 
+def _attach(pending: list[dict], results: list[tuple]) -> None:
+    """Attach observations to the calls of the current assistant turn, in place.
+
+    A result that names a call id goes to that call. Otherwise it goes to the first call that
+    has no observation yet, so N results after N calls land one per call in order. A result
+    with nowhere to go is appended to the last call rather than dropped: losing an observation
+    is exactly the defect this replaces (the second and later tool results of a parallel-call
+    turn used to vanish, hiding the oversized outputs and blind retries they carried).
+    """
+    for rid, text in results:
+        target = None
+        if rid is not None:
+            target = next((c for c in pending if c["id"] is not None and c["id"] == rid), None)
+        if target is None:
+            target = next((c for c in pending if c["obs"] is None), None)
+        if target is None:
+            if not pending or rid is None and not text:
+                continue
+            target = pending[-1]
+        target["obs"] = text if target["obs"] is None else f"{target['obs']}\n{text}"
+
+
 def parse_messages(msgs: list) -> list[Step]:
     steps: list[Step] = []
-    pending: list[tuple[str, str, bool]] | None = None   # (action, tool, terminal)
+    pending: list[dict] = []     # calls of the current assistant turn: {action, tool, terminal, id, obs}
     pending_is_call = False
+
+    def flush():
+        for c in pending:
+            steps.append(Step(c["action"], c["tool"], c["obs"] or "", pending_is_call, c["terminal"]))
+        pending.clear()
+
     for m in msgs:
         if not isinstance(m, dict):
             continue
@@ -198,29 +230,25 @@ def parse_messages(msgs: list) -> list[Step]:
         if tool_results and role == "user":
             role = "tool"
         if role == "assistant":
-            if pending is not None:
-                for a, tl, term in pending:
-                    steps.append(Step(a, tl, "", pending_is_call, term))
-            calls = _tool_calls(m) or tool_uses or actions_from_text(text)
-            is_call = bool(_tool_calls(m) or tool_uses or actions_from_text(text))
+            flush()
+            calls = _tool_calls(m) or tool_uses or [(t, a, None) for t, a in actions_from_text(text)]
+            is_call = bool(calls)
             if not calls:
                 # text-only assistant turn: treat as a terminal-ish narration step
-                last = [l for l in text.strip().splitlines() if l.strip()]
-                calls = [("text", f"turn{len(steps) + (len(pending) if pending else 0)}")]   # unique per turn: narration is never a loop
-            pending = []
-            for tool, args in calls:
+                calls = [("text", f"turn{len(steps)}", None)]   # unique per turn: narration is never a loop
+            for tool, args, cid in calls:
                 tl = str(tool).split("/")[-1]
                 a = norm_action(tl, args)
                 term = any(k in tl.lower() for k in TERMINAL_TOOLS) or FINAL_MARKERS.search(a) is not None
-                pending.append((a, tl, term))
+                pending.append({"action": a, "tool": tl, "terminal": term, "id": cid, "obs": None})
             pending_is_call = is_call
-        elif role in ("user", "tool") and pending is not None:
-            for i, (a, tl, term) in enumerate(pending):
-                steps.append(Step(a, tl, text if i == 0 else "", pending_is_call, term))
-            pending = None
-    if pending is not None:
-        for a, tl, term in pending:
-            steps.append(Step(a, tl, "", pending_is_call, term))
+        elif role in ("user", "tool") and pending:
+            if tool_results:
+                results = tool_results
+            else:
+                results = [(m.get("tool_call_id"), text)]
+            _attach(pending, results)
+    flush()
     return steps
 
 
