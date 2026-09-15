@@ -4,6 +4,7 @@ pipeline.py — the scaled trajectory pipeline.
 
     python -m pip install datasets pyarrow duckdb
     python pipeline.py sweep --limit 20000            # every registered dataset/config/split -> data/runs/*.parquet
+    python pipeline.py sweep --limit 20000 --resume   # same, skipping splits whose shard already exists
     python pipeline.py ingest nvidia/Open-SWE-Traces --config v1.1 --split sweagent --limit 5000
     python pipeline.py report                          # DuckDB over data/runs -> report/index.md + index.json
     python pipeline.py ingest-json samples/*.json      # parse raw sample rows (testing new formats)
@@ -458,6 +459,10 @@ def write_parquet(runs: list[Run], path: Path):
     pq.write_table(tbl, path)
 
 
+def shard_tag(ds: str, cfg: str | None, split: str) -> str:
+    return f"{ds.replace('/', '__')}__{cfg or 'default'}__{split}"
+
+
 def ingest(ds: str, cfg: str | None, split: str, limit: int, out: Path) -> int:
     need("datasets"); need("pyarrow")
     from datasets import load_dataset
@@ -481,14 +486,17 @@ def ingest(ds: str, cfg: str | None, split: str, limit: int, out: Path) -> int:
             bad += 1
         if (i + 1) % 1000 == 0:
             print(f"  {i + 1} rows, {n} parsed", file=sys.stderr)
-    tag = f"{ds.replace('/', '__')}__{cfg or 'default'}__{split}"
+    tag = shard_tag(ds, cfg, split)
     if runs:
         write_parquet(runs, out / "runs" / f"{tag}.parquet")
     print(f"  done: {n} runs parsed, {bad} skipped -> {tag}.parquet", file=sys.stderr)
     return n
 
 
-def sweep(limit: int, out: Path, only: list[str] | None):
+def sweep(limit: int, out: Path, only: list[str] | None, resume: bool = False):
+    """Every registered dataset/config/split -> one Parquet shard. A shard is written only
+    when its split finishes, so an interrupted sweep leaves the finished splits on disk and
+    nothing for the one it was in the middle of. --resume skips splits whose shard exists."""
     need("datasets"); need("pyarrow")
     from datasets import get_dataset_split_names, get_dataset_config_names
     for ds, spec in REGISTRY.items():
@@ -504,6 +512,10 @@ def sweep(limit: int, out: Path, only: list[str] | None):
                     print(f"  could not list splits for {ds}/{cfg}: {str(e)[:120]}", file=sys.stderr)
                     splits = ["train"]
             for sp in splits:
+                shard = out / "runs" / f"{shard_tag(ds, cfg, sp)}.parquet"
+                if resume and shard.exists():
+                    print(f"=== {ds} config={cfg or 'default'} split={sp}: shard exists, skipped (--resume)", file=sys.stderr)
+                    continue
                 try:
                     ingest(ds, cfg, sp, limit, out)
                 except Exception as e:
@@ -653,13 +665,14 @@ def main():
     sub = ap.add_subparsers(dest="cmd", required=True)
     p = sub.add_parser("ingest"); p.add_argument("dataset"); p.add_argument("--config"); p.add_argument("--split", default="train"); p.add_argument("--limit", type=int, default=5000); p.add_argument("--out", default="data")
     p = sub.add_parser("sweep"); p.add_argument("--limit", type=int, default=20000); p.add_argument("--only", nargs="*"); p.add_argument("--out", default="data")
+    p.add_argument("--resume", action="store_true", help="skip every dataset/config/split whose Parquet shard already exists under --out/runs")
     p = sub.add_parser("report"); p.add_argument("--data", default="data"); p.add_argument("--out", default="report")
     p = sub.add_parser("ingest-json"); p.add_argument("paths", nargs="+"); p.add_argument("--out", default="data")
     a = ap.parse_args()
     if a.cmd == "ingest":
         ingest(a.dataset, a.config, a.split, a.limit, Path(a.out))
     elif a.cmd == "sweep":
-        sweep(a.limit, Path(a.out), a.only)
+        sweep(a.limit, Path(a.out), a.only, a.resume)
     elif a.cmd == "report":
         report(Path(a.data), Path(a.out))
     elif a.cmd == "ingest-json":

@@ -860,6 +860,42 @@ class TestRunLengthCurve(unittest.TestCase):
 
 
 @unittest.skipUnless(have("duckdb") and have("pyarrow"), "needs duckdb and pyarrow")
+class TestSweepResume(unittest.TestCase):
+    """A sweep writes one shard per split when that split finishes, so an interrupted sweep
+    leaves finished shards on disk. --resume must skip those and ingest the rest, without
+    touching the network to decide."""
+
+    def test_resume_skips_existing_shards_and_ingests_the_rest(self):
+        pl = load("pipeline")
+        calls = []
+        pl.need = lambda *a, **k: None                       # no datasets/pyarrow needed for the decision
+        pl.ingest = lambda ds, cfg, sp, limit, out: calls.append((ds, cfg, sp)) or 0
+        import types
+        fake = types.ModuleType("datasets")
+        fake.get_dataset_split_names = lambda ds, cfg: ["train"]
+        fake.get_dataset_config_names = lambda ds: []
+        sys.modules["datasets"] = fake
+        try:
+            with tempfile.TemporaryDirectory() as td:
+                out = Path(td)
+                done = "nebius/SWE-agent-trajectories"
+                (out / "runs").mkdir()
+                (out / "runs" / f"{pl.shard_tag(done, None, 'train')}.parquet").write_bytes(b"")
+                only = [done, "nebius/SWE-rebench-openhands-trajectories"]
+                pl.sweep(10, out, only, resume=True)
+                self.assertEqual(calls, [("nebius/SWE-rebench-openhands-trajectories", None, "train")])
+                calls.clear()
+                pl.sweep(10, out, only, resume=False)
+                self.assertEqual([c[0] for c in calls], only, "without --resume every split is ingested again")
+        finally:
+            del sys.modules["datasets"]
+
+    def test_shard_tag_matches_what_ingest_writes(self):
+        pl = load("pipeline")
+        self.assertEqual(pl.shard_tag("nvidia/Open-SWE-Traces", "v1.1", "sweagent"), "nvidia__Open-SWE-Traces__v1.1__sweagent")
+        self.assertEqual(pl.shard_tag("a/b", None, "train"), "a__b__default__train")
+
+
 class TestPipelineReport(unittest.TestCase):
     def _shard(self, tmp: Path, pl, **overrides):
         runs = [pl.Run(dataset="SWE-bench/SWE-smith-trajectories", config="default", split="tool",
