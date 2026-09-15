@@ -297,7 +297,7 @@ class TestOpportunityAccounting(unittest.TestCase):
         self.assertAlmostEqual(op["low"], max(priced))
         self.assertAlmostEqual(op["naive_sum"], sum(priced))
         self.assertLessEqual(op["low"], op["high"])
-        self.assertLessEqual(op["high"], op["naive_sum"])
+        self.assertLessEqual(op["high"], op["naive_sum"] + 1e-9, "the cap can never exceed the naive sum, whatever order the floats were added in")
         self.assertLessEqual(op["high"], res["estimated_spend_monthly"])
         self.assertNotIn("estimated_monthly_waste", res)
         self.assertIn("Opportunity:", md)

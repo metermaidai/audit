@@ -473,6 +473,7 @@ def opportunity_range(findings: list[Finding], key_monthly_cost: dict[str, float
         by_scope[f.scope] += f.monthly_waste
     high = sum(min(v, key_monthly_cost.get(scope, v)) for scope, v in by_scope.items())
     high = min(high, total_monthly) if total_monthly else high
+    high = min(high, naive)     # by construction, and explicitly so summation order can never push it above
     low = max(f.monthly_waste for f in priced)
     return {
         "low": low, "high": high, "naive_sum": naive, "findings": len(priced),
