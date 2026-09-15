@@ -15,6 +15,7 @@ Open-source tools behind [the Agent Waste Index](https://metermaid.ai/agent-wast
 | `keymap.example.json` | Map key / project ids to agents and owners. Copy to `keymap.json`. |
 | `share.py` | Builds `share.json`, the only audit output meant to leave the machine: allowlisted aggregates with pseudonymised ids. Used by `--share` on both auditors. |
 | `supported.json` | The claims ledger: what these tools do today, and the phrases the README, launch copy and website must not use because the thing does not exist. The tests enforce it against this repository's copy. |
+| `schema.py` | The task/attempt/event records the trajectory audit writes locally (`attempts.jsonl`, `tasks.jsonl`, optional `events.jsonl`): identity rules, outcome provenance, and cost per successful task with every attempt counted. |
 
 ## Spend audit
 
@@ -39,6 +40,24 @@ Detectors: identical action three or more times with no state-changing action be
 Mechanical waste is the first three. Edit thrash (same file edited six or more times) is reported as its own line but not costed and not counted as a finding — it flags ordinary iterative editing too often. `pipeline.py` uses the same basis, so your number is comparable to the Index.
 
 With 25 runs or more the audit also computes your **run-length curve**: runs ordered by step count, split into five buckets the same way the Index splits them, with each bucket's share of spend and its resolve rate. The curve is computed from your runs on your machine and only the five aggregate rows are written to the report — per-run rows never leave the audit.
+
+### Tasks and attempts
+
+A run is an attempt; the task is every attempt at the same job, restarts included. The audit
+groups attempts by an explicit id on the record (`instance_id`, `task_id`, `problem_id`,
+`issue_id`, or whatever `--task-id-field` names), else by file stem. It never groups by text
+similarity. Attempts are ordered by an explicit index or timestamp when the record carries one,
+else by path. The report's Tasks section gives tasks, attempts, how many tasks were restarted,
+what the attempts after the first cost, how many leading steps a restart repeated from the
+previous attempt, and cost per successful task with every attempt in the numerator — undefined,
+not zero, when nothing succeeded or nothing carries an outcome.
+
+Outcomes are `success`, `failure` or `unknown`, read from `resolved`, `target`, `success`,
+`verified` or `passed`; a missing label is unknown, never failure, and the report says which field
+the outcomes came from. The Intake section counts records parsed, files not parsed, and duplicate
+attempt ids dropped. `attempts.jsonl` and `tasks.jsonl` are written next to the report; `--events`
+adds `events.jsonl` with one row per step (action, sizes and hashes, not the tool output). All of
+these stay local.
 
 ## Benchmark against the Index
 

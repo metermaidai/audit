@@ -23,7 +23,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SCRIPTS = ["metermaid_audit.py", "trajectory_audit.py", "pipeline.py", "benchmark.py",
-           "hf_pull.py", "hf_batch.py", "download_logs.py", "share.py"]
+           "hf_pull.py", "hf_batch.py", "download_logs.py", "share.py", "schema.py"]
 
 
 def load(name: str):
@@ -171,7 +171,7 @@ class TestShareExport(unittest.TestCase):
     these tests check what it must carry and, more importantly, what it must not."""
 
     TRAJ_KEYS = {"schema_version", "tool", "generated_at", "omitted", "trajectories", "total_cost",
-                 "waste_cost", "waste_share", "sunk_cost", "sunk_share", "curve", "submissions"}
+                 "waste_cost", "waste_share", "sunk_cost", "sunk_share", "curve", "tasks", "submissions"}
     SPEND_KEYS = {"schema_version", "tool", "generated_at", "omitted", "window_days", "price_version",
                   "estimated_spend_monthly", "provider_reported_cost_window", "by_provider_monthly",
                   "by_model_monthly", "unowned_share", "frontier_share_of_spend", "opportunity",
@@ -244,6 +244,8 @@ class TestShareExport(unittest.TestCase):
         self.assertIn("share.json", stdout)
         self.assertIn("never contains", stdout)
         self.assertEqual(payload["omitted"], load("share").OMITTED)
+        self.assertEqual(payload["tasks"]["tasks"], local["tasks"]["tasks"])
+        self.assertNotIn("attempts.jsonl", blob)
 
     def test_fixed_salt_gives_comparable_ids_and_random_salt_does_not(self):
         with tempfile.TemporaryDirectory() as a, tempfile.TemporaryDirectory() as b, tempfile.TemporaryDirectory() as c:
@@ -442,6 +444,122 @@ class TestParallelToolCalls(unittest.TestCase):
         t = ta.parse_any(submit_run(), "r", "sub")
         self.assertEqual([(s.action, s.observation) for s in t.steps],
                          [("open foo.py", "ok"), ("submit", "done")])
+
+
+def run_traj_args(tmp: Path, runs: dict[str, dict], *args: str) -> tuple[dict, str, Path]:
+    src = tmp / "traj" / "sub"
+    src.mkdir(parents=True, exist_ok=True)
+    for name, doc in runs.items():
+        (src / f"{name}.json").write_text(json.dumps(doc), encoding="utf-8")
+    out = tmp / "out"
+    subprocess.run([sys.executable, str(ROOT / "trajectory_audit.py"), str(tmp / "traj"), "--out", str(out), *args],
+                   check=True, capture_output=True)
+    return (json.loads((out / "trajectory-audit.json").read_text(encoding="utf-8")),
+            (out / "trajectory-audit.md").read_text(encoding="utf-8"), out)
+
+
+def steps_run(actions: list[str], **extra) -> dict:
+    msgs = []
+    for a in actions:
+        msgs += [{"role": "assistant", "content": a}, {"role": "user", "content": "ok"}]
+    return {"messages": msgs, **extra}
+
+
+class TestTasksAndAttempts(unittest.TestCase):
+    """The task is the unit of economics: every attempt at the same job, restarts included."""
+
+    def test_explicit_ids_group_attempts_and_price_the_restart(self):
+        first = steps_run(["ls", "cat a.py", "pytest", "edit a.py"], instance_id="acme__1", run_id="r1", attempt=1, resolved=False)
+        second = steps_run(["ls", "cat a.py", "pytest", "submit"], instance_id="acme__1", run_id="r2", attempt=2, resolved=True)
+        with tempfile.TemporaryDirectory() as td:
+            # file names deliberately out of order: the attempt field must decide
+            res, md, out = run_traj_args(Path(td), {"b_second": second, "a_first": first})
+            tasks = [json.loads(l) for l in (out / "tasks.jsonl").read_text(encoding="utf-8").splitlines()]
+            attempts = [json.loads(l) for l in (out / "attempts.jsonl").read_text(encoding="utf-8").splitlines()]
+        tk = res["tasks"]
+        self.assertEqual((tk["tasks"], tk["attempts"], tk["tasks_restarted"]), (1, 2, 1))
+        self.assertEqual(tk["id_sources"], {"task_id": {"instance_id": 2}, "attempt_id": {"run_id": 2}, "outcome": {"resolved": 2}})
+        self.assertEqual(tasks[0]["outcome"], "success", "a task whose later attempt succeeded is a success")
+        self.assertEqual(tasks[0]["attempts"], ["r1", "r2"])
+        by_id = {a["attempt_id"]: a for a in attempts}
+        self.assertEqual((by_id["r1"]["attempt_index"], by_id["r2"]["attempt_index"]), (1, 2))
+        self.assertEqual(by_id["r2"]["retry_of"], "r1")
+        self.assertEqual(by_id["r2"]["repeated_prefix_steps"], 3, "the restart redid ls, cat, pytest")
+        self.assertEqual(tk["redone_steps"], 3)
+        self.assertAlmostEqual(tk["restart_cost"], by_id["r2"]["cost"])
+        self.assertAlmostEqual(tk["cost_per_successful_task"], tk["total_cost"], msg="both attempts in the numerator")
+        self.assertIn("1 tasks restarted", md)
+
+    def test_filename_is_the_fallback_task_id_and_similar_text_is_not_grouped(self):
+        same = steps_run(["ls", "pytest", "submit"])
+        with tempfile.TemporaryDirectory() as td:
+            res, md, _ = run_traj_args(Path(td), {"repo__7": same, "repo__8": dict(same)})
+        tk = res["tasks"]
+        self.assertEqual((tk["tasks"], tk["attempts"], tk["tasks_restarted"]), (2, 2, 0))
+        self.assertEqual(tk["id_sources"]["task_id"], {"filename": 2})
+        self.assertIn("filename: 2", md)
+
+    def test_task_id_field_override(self):
+        with tempfile.TemporaryDirectory() as td:
+            res, _, _ = run_traj_args(Path(td), {"x": steps_run(["ls", "submit"], ticket="T-1", instance_id="ignored-a"),
+                                                  "y": steps_run(["ls", "submit"], ticket="T-1", instance_id="ignored-b")},
+                                      "--task-id-field", "ticket")
+        self.assertEqual(res["tasks"]["tasks"], 1)
+        self.assertEqual(res["tasks"]["id_sources"]["task_id"], {"ticket": 2})
+
+    def test_missing_outcome_is_unknown_not_failure_and_ratio_is_undefined_not_zero(self):
+        with tempfile.TemporaryDirectory() as td:
+            res, md, _ = run_traj_args(Path(td), {"u": steps_run(["ls", "submit"], instance_id="1"),
+                                                   "f": steps_run(["ls", "submit"], instance_id="2", resolved=0)})
+        tk = res["tasks"]
+        self.assertEqual((tk["tasks_success"], tk["tasks_failure"], tk["tasks_unknown"]), (0, 1, 1))
+        self.assertIsNone(tk["cost_per_successful_task"])
+        self.assertIn("no task succeeded", tk["cost_per_successful_task_basis"])
+        self.assertEqual(tk["outcome_coverage"], 0.5)
+        self.assertIn("undefined", md)
+        with tempfile.TemporaryDirectory() as td:
+            res, _, _ = run_traj_args(Path(td), {"u": steps_run(["ls", "submit"], instance_id="1")})
+        self.assertIn("no task carries an outcome", res["tasks"]["cost_per_successful_task_basis"])
+
+    def test_duplicate_attempt_ids_are_dropped_once_and_listed(self):
+        doc = steps_run(["ls", "submit"], instance_id="1", run_id="same")
+        with tempfile.TemporaryDirectory() as td:
+            res, md, _ = run_traj_args(Path(td), {"a": doc, "b": dict(doc)})
+        self.assertEqual(res["trajectories"], 1)
+        self.assertEqual(res["intake"]["duplicate_attempts_dropped"], 1)
+        self.assertEqual(res["intake"]["duplicates"][0]["attempt_id"], "same")
+        self.assertIn("1 duplicate attempt ids dropped", md)
+
+    def test_events_file_is_opt_in_and_holds_hashes_not_output(self):
+        doc = steps_run(["cat secrets.txt"], instance_id="1")
+        doc["messages"][1]["content"] = "TOP-SECRET-PAYLOAD " * 50
+        with tempfile.TemporaryDirectory() as td:
+            _, _, out = run_traj_args(Path(td), {"r": doc})
+            self.assertFalse((out / "events.jsonl").exists())
+        with tempfile.TemporaryDirectory() as td:
+            _, _, out = run_traj_args(Path(td), {"r": doc}, "--events")
+            rows = [json.loads(l) for l in (out / "events.jsonl").read_text(encoding="utf-8").splitlines()]
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["action"], "cat secrets.txt")
+        self.assertEqual(rows[0]["obs_chars"], len("TOP-SECRET-PAYLOAD " * 50))
+        self.assertNotIn("TOP-SECRET", json.dumps(rows))
+        self.assertEqual(rows[0]["parent_id"], rows[0]["event_id"].rsplit("#", 1)[0])
+
+    def test_schema_outcome_and_task_rules(self):
+        sc = load("schema")
+        self.assertEqual(sc.outcome_of({"resolved": True}), ("success", "resolved"))
+        self.assertEqual(sc.outcome_of({"target": 0}), ("failure", "target"))
+        self.assertEqual(sc.outcome_of({"resolved": "None"}), ("unknown", None))
+        self.assertEqual(sc.outcome_of({"resolved": 0.5}), ("unknown", None))
+        self.assertEqual(sc.outcome_of({}), ("unknown", None))
+        A = sc.Attempt
+        mk = lambda i, o, c: A(f"a{i}", "t", "w", i, None if i == 1 else f"a{i-1}", "f", "p", "instance_id", "run_id",
+                               3, c, "reported", None, None, o, "resolved", None)
+        tasks = sc.build_tasks([mk(1, "failure", 1.0), mk(2, "unknown", 2.0)])
+        self.assertEqual(tasks[0].outcome, "unknown", "failure plus unknown is unknown, not failure")
+        self.assertEqual(tasks[0].restart_cost, 2.0)
+        self.assertEqual(sc.build_tasks([mk(1, "failure", 1.0), mk(2, "failure", 2.0)])[0].outcome, "failure")
+        self.assertEqual(sc.common_prefix(["a", "b", "c"], ["a", "b", "x"]), 2)
 
 
 class TestComparabilityWithIndex(unittest.TestCase):
