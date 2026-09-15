@@ -114,6 +114,7 @@ def spend_share(res: dict, invoiced: dict, salt: str) -> dict:
             "id": f.get("id"), "title": f.get("title"),
             "scope": "org" if f.get("scope") == "org" else pseudonym(str(f.get("scope")), salt, "agent_"),
             "monthly_waste": _num(f.get("monthly_waste")),
+            "evidence_level": f.get("evidence_level"), "assumption": f.get("assumption"),
             "evidence": f.get("evidence"), "fix": f.get("fix"),
         })
     keys = []
@@ -138,8 +139,7 @@ def spend_share(res: dict, invoiced: dict, salt: str) -> dict:
         "by_model_monthly": {m: _num(v) for m, v in (res.get("by_model_monthly") or {}).items()},
         "unowned_share": _num(res.get("unowned_share")),
         "frontier_share_of_spend": _num(res.get("frontier_share_of_spend")),
-        "estimated_monthly_waste": _num(res.get("estimated_monthly_waste")),
-        "waste_share": _num(res.get("waste_share")),
+        "opportunity": {k: _num(v) if k != "basis" else v for k, v in (res.get("opportunity") or {}).items()},
         "findings": findings,
         "top_keys_monthly": keys,
         "unknown_models": list(res.get("unknown_models") or []),

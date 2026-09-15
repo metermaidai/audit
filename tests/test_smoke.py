@@ -174,8 +174,8 @@ class TestShareExport(unittest.TestCase):
                  "waste_cost", "waste_share", "sunk_cost", "sunk_share", "curve", "submissions"}
     SPEND_KEYS = {"schema_version", "tool", "generated_at", "omitted", "window_days", "price_version",
                   "estimated_spend_monthly", "provider_reported_cost_window", "by_provider_monthly",
-                  "by_model_monthly", "unowned_share", "frontier_share_of_spend", "estimated_monthly_waste",
-                  "waste_share", "findings", "top_keys_monthly", "unknown_models", "stale_prices"}
+                  "by_model_monthly", "unowned_share", "frontier_share_of_spend", "opportunity",
+                  "findings", "top_keys_monthly", "unknown_models", "stale_prices"}
 
     @staticmethod
     def _run_with_commands() -> dict:
@@ -271,6 +271,8 @@ class TestShareExport(unittest.TestCase):
             self.assertTrue(f["scope"] == "org" or f["scope"].startswith("agent_"), f["scope"])
         self.assertTrue(all(k["key"].startswith("key_") for k in payload["top_keys_monthly"]))
         self.assertIn("never contains", r.stdout)
+        self.assertLessEqual(payload["opportunity"]["low"], payload["opportunity"]["high"])
+        self.assertTrue(all(f["evidence_level"] in ("observed", "modeled") for f in payload["findings"]))
 
 
 class TestOpportunityAccounting(unittest.TestCase):
