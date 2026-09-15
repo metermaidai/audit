@@ -34,6 +34,9 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import schema
+
 ERROR_MARKERS = ("Traceback", "Error:", "error:", "ERROR", "not found", "No such file",
                  "command not found", "SyntaxError", "failed", "FAILED", "Permission denied",
                  "Exception", "exit code 1", "returned non-zero")
@@ -69,6 +72,13 @@ class Traj:
     exit_status: str | None = None
     cost_source: str = "none"          # reported | tokens | chars
     resolved: bool | None = None       # task outcome when the dataset carries it
+    resolved_source: str | None = None # the field it came from
+    task_id: str | None = None         # explicit task/instance id, else the file stem (see schema.py)
+    task_id_source: str = "filename"
+    attempt_id: str | None = None      # explicit attempt/run id, else the path
+    attempt_id_source: str = "path"
+    attempt_order: str = ""            # explicit index/timestamp when present; sorts attempts within a task
+    path: str = ""
 
 
 # ---------------------------------------------------------------------------
@@ -233,6 +243,10 @@ def parse_openhands(d: dict, tid: str, sub: str) -> Traj | None:
                 tu.get("prompt_tokens"), tu.get("completion_tokens"), None, exit_status)
 
 
+TASK_ID_FIELD: str | None = None      # --task-id-field
+ATTEMPT_ID_FIELD: str | None = None   # --attempt-id-field
+
+
 def parse_any(obj: dict, tid: str, sub: str) -> Traj | None:
     if not isinstance(obj, dict):
         return None
@@ -251,14 +265,28 @@ def parse_any(obj: dict, tid: str, sub: str) -> Traj | None:
         ex = obj.get("exit_status")
         if isinstance(ex, str) and ex not in ("", "None"):   # pipeline.py filters "None" too
             t.exit_status = ex
-    for key in ("target", "resolved", "success"):
-        v = obj.get(key)
-        if isinstance(v, bool):
-            t.resolved = v
-            break
-        if isinstance(v, (int, float)) and v in (0, 1):
-            t.resolved = bool(v)
-            break
+    outcome, src = schema.outcome_of(obj)
+    t.resolved = None if outcome == schema.UNKNOWN else (outcome == schema.SUCCESS)
+    t.resolved_source = src
+    task, tsrc = schema.explicit(obj, schema.TASK_ID_FIELDS, TASK_ID_FIELD)
+    if task is not None:
+        t.task_id, t.task_id_source = str(task), tsrc
+    att, asrc = schema.explicit(obj, schema.ATTEMPT_ID_FIELDS, ATTEMPT_ID_FIELD)
+    if att is not None:
+        t.attempt_id, t.attempt_id_source = str(att), asrc
+    order, _ = schema.explicit(obj, schema.ATTEMPT_ORDER_FIELDS)
+    if order is not None:
+        t.attempt_order = f"{float(order):020.6f}" if isinstance(order, (int, float)) else str(order)
+    return t
+
+
+def _identify(t: Traj, path: Path, stem: str, line: int | None = None) -> Traj:
+    """Fill the identity fields a record did not carry explicitly."""
+    t.path = f"{path}#{line}" if line is not None else str(path)
+    if t.task_id is None:
+        t.task_id, t.task_id_source = stem, "filename"
+    if t.attempt_id is None:
+        t.attempt_id, t.attempt_id_source = t.path, "path"
     return t
 
 
@@ -282,7 +310,7 @@ def load_path(path: Path, sub: str, unparsed: list[str]) -> list[Traj]:
                 continue
             t = parse_any(obj, str(obj.get("instance_id") if isinstance(obj, dict) else "") or f"{tid}#{i}", sub)
             if t:
-                out.append(t)
+                out.append(_identify(t, path, f"{tid}#{i}", i))
             else:
                 unparsed.append(f"{path}#{i}")
         return out
@@ -293,7 +321,7 @@ def load_path(path: Path, sub: str, unparsed: list[str]) -> list[Traj]:
         return out
     t = parse_any(obj, tid, sub)
     if t:
-        out.append(t)
+        out.append(_identify(t, path, tid))
     else:
         unparsed.append(str(path))
     return out
@@ -471,6 +499,59 @@ def curve(ts: list[Traj]) -> list[dict]:
     return rows
 
 
+def dedupe(trajs: list[Traj]) -> tuple[list[Traj], list[dict]]:
+    """Keep the first record per (submission, attempt_id); list what was dropped."""
+    seen: dict[tuple[str, str], str] = {}
+    kept, dups = [], []
+    for t in trajs:
+        key = (t.submission, t.attempt_id or t.path)
+        if key in seen:
+            dups.append({"attempt_id": t.attempt_id, "path": t.path, "kept": seen[key]})
+            continue
+        seen[key] = t.path
+        kept.append(t)
+    return kept, dups
+
+
+def attempts_and_tasks(trajs: list[Traj], hits: list[Hit]) -> tuple[list[schema.Attempt], list[schema.Task]]:
+    """Order each task's attempts, index them, measure redone work, then group."""
+    by_traj: dict[str, list[Hit]] = defaultdict(list)
+    for h in hits:
+        by_traj[h.traj_id].append(h)
+    groups: dict[tuple[str, str], list[Traj]] = defaultdict(list)
+    for t in trajs:
+        groups[(t.submission, t.task_id or t.id)].append(t)
+    attempts: list[schema.Attempt] = []
+    for (sub, task_id), ts in groups.items():
+        ts.sort(key=lambda t: (t.attempt_order, t.path))
+        prev: Traj | None = None
+        for i, t in enumerate(ts, 1):
+            th = by_traj.get(t.id, [])
+            det = lambda code: sum(h.wasted_steps for h in th if h.detector.startswith(code))
+            redone = schema.common_prefix([norm(s.action) for s in prev.steps], [norm(s.action) for s in t.steps]) if prev else 0
+            attempts.append(schema.Attempt(
+                attempt_id=t.attempt_id or t.path, task_id=task_id, workflow=sub, attempt_index=i,
+                retry_of=(prev.attempt_id or prev.path) if prev else None,
+                source_format=t.fmt, path=t.path, task_id_source=t.task_id_source, attempt_id_source=t.attempt_id_source,
+                steps=len(t.steps), cost=t.cost or 0.0, cost_source=t.cost_source,
+                tokens_in=t.tokens_in, tokens_out=t.tokens_out,
+                outcome=schema.UNKNOWN if t.resolved is None else (schema.SUCCESS if t.resolved else schema.FAILURE),
+                outcome_source=t.resolved_source, exit_status=t.exit_status,
+                repeated_prefix_steps=redone, loop_steps=det("T01"), retry_steps=det("T02"), bloat_obs=det("T03")))
+            prev = t
+    return attempts, schema.build_tasks(attempts)
+
+
+def events(trajs: list[Traj]) -> list[schema.Event]:
+    out = []
+    for t in trajs:
+        aid = t.attempt_id or t.path
+        for i, s in enumerate(t.steps):
+            out.append(schema.Event(f"{aid}#{i}", aid, i, s.action, schema.sha(s.action), len(s.observation),
+                                    schema.sha(s.observation), any(m in s.observation for m in ERROR_MARKERS)))
+    return out
+
+
 def summarize(trajs: list[Traj], hits: list[Hit]) -> dict:
     by_sub = defaultdict(list)
     for t in trajs:
@@ -534,14 +615,43 @@ def summarize(trajs: list[Traj], hits: list[Hit]) -> dict:
     total = sum(s["total_cost"] for s in subs.values())
     waste = sum(s["waste_cost"] for s in subs.values())
     sunk = sum(s["sunk_cost"] for s in subs.values())
-    return {"submissions": subs, "trajectories": len(trajs), "total_cost": total, "waste_cost": waste,
+    attempts, tasks = attempts_and_tasks(trajs, hits)
+    id_sources = {
+        "task_id": dict(Counter(a.task_id_source for a in attempts)),
+        "attempt_id": dict(Counter(a.attempt_id_source for a in attempts)),
+        "outcome": dict(Counter(a.outcome_source or "none" for a in attempts)),
+    }
+    return {"schema_version": schema.SCHEMA_VERSION,
+            "submissions": subs, "trajectories": len(trajs), "total_cost": total, "waste_cost": waste,
             "waste_share": (waste / total) if total else 0, "sunk_cost": sunk, "sunk_share": (sunk / total) if total else 0,
-            "curve": curve(trajs)}
+            "curve": curve(trajs),
+            "tasks": {**schema.task_summary(tasks), "id_sources": id_sources},
+            "_attempts": attempts, "_tasks": tasks}
 
 
-def write(res: dict, unparsed: list[str], out: Path):
+def write(res: dict, unparsed: list[str], out: Path, duplicates: list[dict] | None = None,
+          evs: list[schema.Event] | None = None):
     out.mkdir(parents=True, exist_ok=True)
+    attempts, tasks = res.pop("_attempts", []), res.pop("_tasks", [])
+    res["intake"] = {
+        "records_parsed": res["trajectories"],
+        "files_unparsed": len(unparsed),
+        "duplicate_attempts_dropped": len(duplicates or []),
+        "unparsed": list(unparsed),
+        "duplicates": list(duplicates or []),
+    }
+    tk, it = res["tasks"], res["intake"]      # taken now: the report loop below reuses the name `res`
     (out / "trajectory-audit.json").write_text(json.dumps(res, indent=2), encoding="utf-8")
+    with (out / "attempts.jsonl").open("w", encoding="utf-8") as f:
+        for a in attempts:
+            f.write(json.dumps(schema.to_row(a)) + "\n")
+    with (out / "tasks.jsonl").open("w", encoding="utf-8") as f:
+        for t in tasks:
+            f.write(json.dumps(schema.to_row(t)) + "\n")
+    if evs is not None:
+        with (out / "events.jsonl").open("w", encoding="utf-8") as f:
+            for e in evs:
+                f.write(json.dumps(schema.to_row(e)) + "\n")
     L = ["# metermaid trajectory audit\n",
          f"{res['trajectories']:,} trajectories across {len(res['submissions'])} submission(s). "
          f"Total cost ${res['total_cost']:,.2f}. Mechanical waste ${res['waste_cost']:,.2f} ({res['waste_share']:.0%}) — "
@@ -578,12 +688,34 @@ def write(res: dict, unparsed: list[str], out: Path):
             L.append("\nWorst runs:")
             for h in s["worst"]:
                 L.append(f"- {h['traj_id']}: {h['detector']} — ${h['wasted_cost']:,.2f}, {h['wasted_steps']} steps, {h['note']}")
+    L.append("\n## Tasks\n")
+    L.append("A task is every attempt at the same job, restarts included. Task ids come from the record "
+             f"({', '.join(f'{k}: {v}' for k, v in tk['id_sources']['task_id'].items())}); attempts are never grouped by "
+             "text similarity.\n")
+    L.append(f"- {tk['tasks']:,} tasks, {tk['attempts']:,} attempts; {tk['tasks_restarted']:,} tasks restarted "
+             f"({tk['restart_attempts']:,} extra attempts)")
+    if tk["restart_cost_share"] is not None:
+        L.append(f"- Spent on attempts after the first: ${tk['restart_cost']:,.2f} ({tk['restart_cost_share']:.0%} of cost); "
+                 f"{tk['redone_steps']:,} leading steps repeated from the previous attempt")
+    cov = f"{tk['outcome_coverage']:.0%}" if tk["outcome_coverage"] is not None else "—"
+    L.append(f"- Outcomes: {tk['tasks_success']:,} success, {tk['tasks_failure']:,} failure, {tk['tasks_unknown']:,} unknown "
+             f"(coverage {cov}; sources: {', '.join(f'{k}: {v}' for k, v in tk['id_sources']['outcome'].items())})")
+    if tk["cost_per_successful_task"] is not None:
+        L.append(f"- Cost per successful task: ${tk['cost_per_successful_task']:,.2f} ({tk['cost_per_successful_task_basis']})")
+    else:
+        L.append(f"- Cost per successful task: {tk['cost_per_successful_task_basis']}")
+    L.append(f"\n## Intake\n")
+    L.append(f"- {it['records_parsed']:,} records parsed; {it['files_unparsed']:,} files or lines not parsed; "
+             f"{it['duplicate_attempts_dropped']:,} duplicate attempt ids dropped (first occurrence kept)")
+    if it["duplicates"]:
+        L += [f"- duplicate: {d['path']} (kept {d['kept']})" for d in it["duplicates"][:30]]
     if unparsed:
         L.append(f"\n## Unparsed files ({len(unparsed)})\n")
         L += [f"- {u}" for u in unparsed[:30]]
     (out / "trajectory-audit.md").write_text("\n".join(L), encoding="utf-8")
     print("\n".join(L))
-    print(f"\nWrote {out / 'trajectory-audit.md'} and {out / 'trajectory-audit.json'}")
+    print(f"\nWrote {out / 'trajectory-audit.md'}, {out / 'trajectory-audit.json'}, {out / 'attempts.jsonl'} and {out / 'tasks.jsonl'}"
+          + (f" and {out / 'events.jsonl'}" if evs is not None else ""))
 
 
 # ---------------------------------------------------------------------------
@@ -605,9 +737,12 @@ def demo() -> list[Traj]:
             steps.append(Step(a, obs, 200))
         if i % 5:
             steps.append(Step("submit", "", 50))
+        task = f"repo__repo-{1000 + (i if i < 36 else i - 4)}"   # the last four runs restart earlier tasks
         t = Traj(f"repo__repo-{1000 + i}", "demo_sweagent_claude", "sweagent", steps,
                  cost=round(0.02 * len(steps) * random.uniform(0.6, 1.6), 3), tokens_in=len(steps) * 6000,
-                 tokens_out=len(steps) * 300, api_calls=len(steps), exit_status="submitted" if i % 5 else "exit_cost")
+                 tokens_out=len(steps) * 300, api_calls=len(steps), exit_status="submitted" if i % 5 else "exit_cost",
+                 task_id=task, task_id_source="instance_id", attempt_id=f"run-{i}", attempt_id_source="run_id",
+                 attempt_order=f"{i:020.6f}", path=f"demo/{task}/run-{i}.traj")
         ts.append(t)
     return ts
 
@@ -629,7 +764,12 @@ def main():
     ap.add_argument("--salt", default=None,
                     help="salt for the pseudonyms in share.json. Fix it to make ids comparable across audits; "
                          "omit for a one-off random salt. Never share the salt.")
+    ap.add_argument("--task-id-field", default=None, help="record field holding the task id (tried before instance_id etc.)")
+    ap.add_argument("--attempt-id-field", default=None, help="record field holding the attempt id (tried before run_id etc.)")
+    ap.add_argument("--events", action="store_true", help="also write events.jsonl: one row per step with action, sizes and hashes (local only)")
     a = ap.parse_args()
+    global TASK_ID_FIELD, ATTEMPT_ID_FIELD
+    TASK_ID_FIELD, ATTEMPT_ID_FIELD = a.task_id_field, a.attempt_id_field
 
     unparsed: list[str] = []
     if a.demo:
@@ -649,11 +789,12 @@ def main():
                 trajs += load_path(P, P.name if P.is_dir() else P.parent.name, unparsed)
     if not trajs:
         sys.exit(f"no trajectories parsed ({len(unparsed)} files skipped)")
+    trajs, duplicates = dedupe(trajs)
     for t in trajs:
         price(t, a.price_in, a.price_out)
     hits = [h for t in trajs for h in detect(t, a.big_obs_chars)]
     res = summarize(trajs, hits)
-    write(res, unparsed, Path(a.out))
+    write(res, unparsed, Path(a.out), duplicates, events(trajs) if a.events else None)
     if a.share:
         import share
         payload = share.trajectory_share(res, a.salt or share.new_salt())
