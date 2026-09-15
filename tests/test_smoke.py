@@ -23,7 +23,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SCRIPTS = ["metermaid_audit.py", "trajectory_audit.py", "pipeline.py", "benchmark.py",
-           "hf_pull.py", "hf_batch.py", "download_logs.py"]
+           "hf_pull.py", "hf_batch.py", "download_logs.py", "share.py"]
 
 
 def load(name: str):
@@ -164,6 +164,113 @@ class TestRateCard(unittest.TestCase):
         rc = audit.RateCard(ROOT / "ratecard.json", today=datetime(2026, 9, 15, tzinfo=timezone.utc))
         rc.lookup("claude-opus-5")
         self.assertEqual(rc.stale(), [])
+
+
+class TestShareExport(unittest.TestCase):
+    """share.json is the one file meant to leave the machine. It is built by allowlist, so
+    these tests check what it must carry and, more importantly, what it must not."""
+
+    TRAJ_KEYS = {"schema_version", "tool", "generated_at", "omitted", "trajectories", "total_cost",
+                 "waste_cost", "waste_share", "sunk_cost", "sunk_share", "curve", "submissions"}
+    SPEND_KEYS = {"schema_version", "tool", "generated_at", "omitted", "window_days", "price_version",
+                  "estimated_spend_monthly", "provider_reported_cost_window", "by_provider_monthly",
+                  "by_model_monthly", "unowned_share", "frontier_share_of_spend", "estimated_monthly_waste",
+                  "waste_share", "findings", "top_keys_monthly", "unknown_models", "stale_prices"}
+
+    @staticmethod
+    def _run_with_commands() -> dict:
+        """Three turns of the same two tool calls, both erroring, the second with an
+        oversized payload, then a submit. Its actions carry commands the share must not."""
+        msgs = []
+        for i in range(3):
+            msgs.append({"role": "assistant", "content": "", "tool_calls": [
+                {"id": f"a{i}", "type": "function", "function": {"name": "bash", "arguments": "{\"cmd\": \"pytest tests/a.py\"}"}},
+                {"id": f"b{i}", "type": "function", "function": {"name": "bash", "arguments": "{\"cmd\": \"pytest tests/b.py\"}"}}]})
+            msgs.append({"role": "tool", "tool_call_id": f"a{i}", "content": "Error: boom A"})
+            msgs.append({"role": "tool", "tool_call_id": f"b{i}", "content": "Error: boom B " + "x" * 30_000})
+        msgs += [{"role": "assistant", "content": "submit"}, {"role": "user", "content": "done"}]
+        return {"messages": msgs}
+
+    @staticmethod
+    def _keys(obj, found=None) -> set:
+        """Every dict key anywhere in a payload."""
+        found = set() if found is None else found
+        if isinstance(obj, dict):
+            for k, v in obj.items():
+                found.add(k)
+                TestShareExport._keys(v, found)
+        elif isinstance(obj, list):
+            for v in obj:
+                TestShareExport._keys(v, found)
+        return found
+
+    def _traj_share(self, td: Path, salt: str | None = None) -> tuple[dict, str, dict]:
+        """Audit a directory holding one run whose file name is the kind of repo__issue id
+        real traces use, with --share."""
+        src = td / "acme-traces" / "sub"
+        src.mkdir(parents=True)
+        (src / "acme__issue-42.json").write_text(json.dumps(self._run_with_commands()), encoding="utf-8")
+        out = td / "out"
+        args = [sys.executable, str(ROOT / "trajectory_audit.py"), str(td / "acme-traces"), "--out", str(out), "--share"]
+        if salt:
+            args += ["--salt", salt]
+        r = subprocess.run(args, capture_output=True, text=True, check=True, cwd=td)
+        return (json.loads((out / "share.json").read_text(encoding="utf-8")), r.stdout,
+                json.loads((out / "trajectory-audit.json").read_text(encoding="utf-8")))
+
+    @staticmethod
+    def _blob(payload: dict) -> str:
+        """The payload as text, minus the omitted-list prose (which names the very things
+        the leak checks look for)."""
+        return json.dumps({k: v for k, v in payload.items() if k != "omitted"})
+
+    def test_trajectory_share_is_allowlisted_and_carries_no_run_ids_or_commands(self):
+        with tempfile.TemporaryDirectory() as td:
+            payload, stdout, local = self._traj_share(Path(td))
+        self.assertEqual(set(payload), self.TRAJ_KEYS)
+        blob = self._blob(payload)
+        local_blob = json.dumps(local)
+        # the run id, submission label and commands all appear in the local report...
+        for leak in ("acme__issue-42", "acme-traces", "pytest tests/a.py"):
+            self.assertIn(leak, local_blob, f"fixture no longer exercises {leak!r}")
+            # ...and none of them in the share file
+            self.assertNotIn(leak, blob, f"share.json leaked {leak!r}")
+        self.assertFalse(self._keys(payload) & {"traj_id", "note", "submission", "idx", "unparsed"})
+        self.assertEqual(payload["trajectories"], local["trajectories"])
+        sub = next(iter(payload["submissions"].values()))
+        self.assertIn("T01 tool loop", sub["by_detector"])
+        self.assertTrue(sub["worst"])
+        self.assertTrue(all(set(w) == {"detector", "wasted_steps", "wasted_cost"} for w in sub["worst"]))
+        self.assertIn("share.json", stdout)
+        self.assertIn("never contains", stdout)
+        self.assertEqual(payload["omitted"], load("share").OMITTED)
+
+    def test_fixed_salt_gives_comparable_ids_and_random_salt_does_not(self):
+        with tempfile.TemporaryDirectory() as a, tempfile.TemporaryDirectory() as b, tempfile.TemporaryDirectory() as c:
+            ida = sorted(self._traj_share(Path(a), "pepper")[0]["submissions"])
+            idb = sorted(self._traj_share(Path(b), "pepper")[0]["submissions"])
+            idc = sorted(self._traj_share(Path(c))[0]["submissions"])
+        self.assertEqual(ida, idb, "same salt must give the same pseudonyms")
+        self.assertNotEqual(ida, idc, "a random salt must not reproduce them")
+        self.assertNotIn("pepper", json.dumps(ida))
+
+    def test_spend_share_is_allowlisted_and_carries_no_owners_or_labels(self):
+        with tempfile.TemporaryDirectory() as td:
+            r = subprocess.run([sys.executable, str(ROOT / "metermaid_audit.py"), "--demo", "--days", "30",
+                                "--out", td, "--share"], capture_output=True, text=True, check=True, cwd=td)
+            payload = json.loads((Path(td) / "share.json").read_text(encoding="utf-8"))
+            local = (Path(td) / "audit.json").read_text(encoding="utf-8")
+        self.assertEqual(set(payload), self.SPEND_KEYS)
+        blob = self._blob(payload)
+        for leak in ("@", "jane", "support-triage", "pr-reviewer", "apikey_", "proj_", "ws_"):
+            self.assertNotIn(leak, blob, f"share.json leaked {leak!r}")
+        self.assertFalse(self._keys(payload) & {"owner", "label", "key_id", "scope_id", "rows"})
+        self.assertIn("support-triage", local, "--share implies --anon, which keeps agent labels locally")
+        self.assertTrue(payload["findings"])
+        for f in payload["findings"]:
+            self.assertTrue(f["scope"] == "org" or f["scope"].startswith("agent_"), f["scope"])
+        self.assertTrue(all(k["key"].startswith("key_") for k in payload["top_keys_monthly"]))
+        self.assertIn("never contains", r.stdout)
 
 
 class TestDetectors(unittest.TestCase):

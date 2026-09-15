@@ -13,6 +13,7 @@ Open-source tools behind [the Agent Waste Index](https://metermaid.ai/agent-wast
 | `hf_pull.py`, `hf_batch.py` | Earlier per-file tooling for pulling Hugging Face trajectory datasets and sampling raw rows for new parsers. `pipeline.py` supersedes them for analysis. |
 | `ratecard.json` | Per-model prices used by the spend audit. Carries a `price_version` and a `verified_on` date per model; the audit prints the version in every report and lists any price it used that is unverified or older than 90 days. Check those against the provider's pricing page before sharing an audit. |
 | `keymap.example.json` | Map key / project ids to agents and owners. Copy to `keymap.json`. |
+| `share.py` | Builds `share.json`, the only audit output meant to leave the machine: allowlisted aggregates with pseudonymised ids. Used by `--share` on both auditors. |
 
 ## Spend audit
 
@@ -84,7 +85,31 @@ CI runs them on every push and pull request.
 
 ## Sharing results
 
-`--anon` on the spend audit hashes key, workspace, and project ids and drops owner emails. You can generate your own position against the Index locally with `benchmark.py` — nothing needs to be sent. If you would rather we read it, send `audit/audit.json` or `traj-audit/trajectory-audit.json` via the form at metermaid.ai and we will go through it with you.
+Neither local report is meant to leave your machine. `audit/audit.json` carries per-key spend
+under your own labels; `traj-audit/trajectory-audit.json` carries run ids (often repo and issue
+names) and the worst runs' commands. `--anon` on the spend audit hashes key, workspace and
+project ids and drops owner emails in that local report; the trajectory audit's local report
+is never anonymised.
+
+The file to send is `share.json`, written by `--share` on either tool. It is built by allowlist
+from the local result: totals, shares, the five run-length rows, per-detector counts and costs,
+findings with their evidence, and pseudonymised submission, agent and key ids. It never carries
+per-run rows, run ids, commands, prompts, tool output, file paths, owner emails, or raw
+key/workspace/project ids, and it says so inside the file. The tool prints exactly what the
+file contains before it writes it.
+
+```bash
+python trajectory_audit.py ./your-traces --share --salt "$METERMAID_SALT"
+python metermaid_audit.py --share --salt "$METERMAID_SALT"
+```
+
+Fix `--salt` and the same submission or key hashes to the same pseudonym next month, so two
+share files can be compared. Omit it for a one-off random salt. Keep the salt like a password;
+it is never written to any file.
+
+You can generate your own position against the Index locally with `benchmark.py` — nothing
+needs to be sent. If you would rather we read it, send `share.json` via the form at
+metermaid.ai and we will go through it with you.
 
 ## Data sources (edition 1)
 
