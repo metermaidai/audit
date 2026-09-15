@@ -100,6 +100,8 @@ def trajectory_share(res: dict, salt: str) -> dict:
         "waste_cost": _num(res.get("waste_cost")), "waste_share": _num(res.get("waste_share")),
         "sunk_cost": _num(res.get("sunk_cost")), "sunk_share": _num(res.get("sunk_share")),
         "curve": _curve(res.get("curve")),
+        "tasks": {k: (v if k in ("id_sources", "cost_per_successful_task_basis") else _num(v))
+                  for k, v in (res.get("tasks") or {}).items()},
         "submissions": subs,
     }
 

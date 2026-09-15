@@ -171,7 +171,7 @@ class TestShareExport(unittest.TestCase):
     these tests check what it must carry and, more importantly, what it must not."""
 
     TRAJ_KEYS = {"schema_version", "tool", "generated_at", "omitted", "trajectories", "total_cost",
-                 "waste_cost", "waste_share", "sunk_cost", "sunk_share", "curve", "submissions"}
+                 "waste_cost", "waste_share", "sunk_cost", "sunk_share", "curve", "tasks", "submissions"}
     SPEND_KEYS = {"schema_version", "tool", "generated_at", "omitted", "window_days", "price_version",
                   "estimated_spend_monthly", "provider_reported_cost_window", "by_provider_monthly",
                   "by_model_monthly", "unowned_share", "frontier_share_of_spend", "opportunity",
@@ -244,6 +244,8 @@ class TestShareExport(unittest.TestCase):
         self.assertIn("share.json", stdout)
         self.assertIn("never contains", stdout)
         self.assertEqual(payload["omitted"], load("share").OMITTED)
+        self.assertEqual(payload["tasks"]["tasks"], local["tasks"]["tasks"])
+        self.assertNotIn("attempts.jsonl", blob)
 
     def test_fixed_salt_gives_comparable_ids_and_random_salt_does_not(self):
         with tempfile.TemporaryDirectory() as a, tempfile.TemporaryDirectory() as b, tempfile.TemporaryDirectory() as c:
