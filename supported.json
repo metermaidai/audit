@@ -1,0 +1,24 @@
+{
+  "_note": "The claims ledger. What the tools in this repository actually do today, in the words the README, the launch copy and the website may use. tests/test_smoke.py fails when repository copy names anything in never_claim; the website repository is meant to run the same check against its pages. Add to supported when the code ships it; remove from never_claim in the same change.",
+  "version": "2026-09-15",
+  "spend_audit": {
+    "providers": ["Anthropic", "OpenAI"],
+    "access": "read-only admin API keys, called from the operator's machine",
+    "detectors": ["frontier model on short high-volume traffic", "prompt caching unused", "input context growing", "spend spike", "bursty workload not on batch pricing", "spend with no named owner"]
+  },
+  "trajectory_audit": {
+    "formats": ["SWE-agent", "mini-swe-agent", "OpenHands", "message lists"],
+    "detectors": ["loop", "blind retry", "oversized tool output", "edit thrash (reported, not costed)", "ended without a result"],
+    "outputs": ["run-length curve", "position against the Index"]
+  },
+  "outputs": ["local markdown and JSON reports", "benchmark.html", "share.json"],
+  "runs": "locally; nothing is sent unless the operator sends share.json",
+  "never_claim": {
+    "_note": "Phrases that describe integrations, features or guarantees that do not exist in this repository. Case-insensitive substring match against README.md and launch.md.",
+    "spend_providers": ["Bedrock", "Vertex", "Azure"],
+    "trace_sources": ["OpenTelemetry", "Langfuse", "LangSmith", "straight from Claude Code"],
+    "outcome_sources": ["Outcomes from GitHub", "from GitHub, Slack", "or a webhook"],
+    "product_features": ["fix pull requests", "pull requests against", "stop and escalate", "step and cost budgets", "budgets by task type", "step budget is the lever", "live step", "web app", "Enterprise tier", "SSO", "SCIM", "data residency", "reconciled to the invoice", "reconciled to invoices", "on the next invoice"],
+    "savings_claims": ["removes 44%", "44% of estimated spend", "12% fewer", "verified savings", "20% of verified"]
+  }
+}
