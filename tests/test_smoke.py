@@ -964,6 +964,22 @@ class TestPublishedIndexMatchesCode(unittest.TestCase):
         n = sum(g["runs"] for g in self.groups if g["dataset"] == "nvidia/Open-SWE-Traces")
         self.assertIn(f"{n:,} runs ride on that label", notes)
 
+    def test_notes_resolve_coverage_matches_the_report(self):
+        notes = (ROOT / "report" / "notes.md").read_text(encoding="utf-8")
+        n = sum(1 for g in self.groups if g.get("n_resolved_known"))
+        self.assertIn(f"`resolved` is present for {n} of {len(self.groups)} groups", notes)
+
+    def test_launch_copy_quintile_counts_match_the_report(self):
+        """The launch copy quotes how many labelled groups the quintile finding holds in."""
+        key = lambda m: (m["dataset"], m["config"], m["split"], m["model"])
+        byg = {}
+        for m in self.index["marginal"]:
+            byg.setdefault(key(m), {})[m["q"]] = m
+        labelled = [k for k, v in byg.items() if all(q in v for q in range(1, 6)) and v[1].get("resolve") is not None and v[5].get("resolve") is not None]
+        falls = sum(1 for k in labelled if byg[k][5]["resolve"] < byg[k][1]["resolve"])
+        launch = (ROOT / "launch.md").read_text(encoding="utf-8")
+        self.assertIn(f"in {falls}\nof {len(labelled)}.", launch)
+
     def test_launch_copy_headline_run_count_matches(self):
         launch = (ROOT / "launch.md").read_text(encoding="utf-8")
         self.assertIn(f"{self.index['total_runs']:,}", launch)
