@@ -67,16 +67,40 @@ class Row:
 # Rate card
 # ---------------------------------------------------------------------------
 class RateCard:
-    def __init__(self, path: Path):
+    def __init__(self, path: Path, today: datetime | None = None):
         self.cfg = json.loads(path.read_text())
         self.models = self.cfg["models"]
         self.prefixes = sorted(self.models.keys(), key=len, reverse=True)
         self.unknown: set[str] = set()
+        self.price_version = str(self.cfg.get("price_version") or "unversioned")
+        self.stale_after_days = int(self.cfg.get("stale_after_days") or 90)
+        self.today = (today or datetime.now(timezone.utc)).date()
+        self.used: set[str] = set()      # card prefixes that priced at least one row
+
+    def verified_on(self, prefix: str):
+        v = self.models[prefix].get("verified_on")
+        if not v:
+            return None
+        return datetime.strptime(str(v), "%Y-%m-%d").date()
+
+    def stale(self, only_used: bool = True) -> list[dict]:
+        """Rows whose prices were never verified, or were verified more than
+        stale_after_days ago. The audit prints these; it never refuses to run."""
+        out = []
+        for p in sorted(self.models):
+            if only_used and p not in self.used:
+                continue
+            d = self.verified_on(p)
+            age = (self.today - d).days if d else None
+            if d is None or age > self.stale_after_days:
+                out.append({"model": p, "verified_on": d.isoformat() if d else None, "age_days": age})
+        return out
 
     def lookup(self, model: str) -> dict | None:
         m = model.lower()
         for p in self.prefixes:
             if m.startswith(p):
+                self.used.add(p)
                 return self.models[p]
         self.unknown.add(model)
         return None
@@ -174,6 +198,16 @@ def fetch_anthropic_usage(admin_key: str, start: datetime, end: datetime, width:
     return rows
 
 
+# What each provider's cost endpoint returns, as this code reads it. These are the
+# assumptions the "provider-reported cost" line rests on; the audit prints them so a
+# reader can check them against a live response rather than trust the number.
+COST_REPORT_BASIS = {
+    "anthropic": "cost_report amount read as a decimal string in cents and divided by 100; currency field checked, USD expected",
+    "openai": "costs amount.value read as USD",
+}
+COST_CURRENCIES_SEEN: dict[str, set] = defaultdict(set)
+
+
 def fetch_anthropic_cost(admin_key: str, start: datetime, end: datetime) -> float:
     headers = {"x-api-key": admin_key, "anthropic-version": "2023-06-01"}
     invoiced = 0.0
@@ -187,7 +221,8 @@ def fetch_anthropic_cost(admin_key: str, start: datetime, end: datetime) -> floa
         for bucket in data.get("data", []):
             for res in bucket.get("results", []):
                 amt = res.get("amount")
-                # amounts are strings in lowest currency unit (cents) in USD
+                COST_CURRENCIES_SEEN["anthropic"].add(str(res.get("currency") or "unstated"))
+                # amount is documented as a decimal string in the lowest currency unit (cents)
                 try:
                     invoiced += float(amt) / 100.0
                 except (TypeError, ValueError):
@@ -250,6 +285,7 @@ def fetch_openai_cost(admin_key: str, start: datetime, end: datetime) -> float:
         for bucket in data.get("data", []):
             for res in bucket.get("results", []):
                 amt = (res.get("amount") or {}).get("value")
+                COST_CURRENCIES_SEEN["openai"].add(str((res.get("amount") or {}).get("currency") or "unstated"))
                 try:
                     invoiced += float(amt)
                 except (TypeError, ValueError):
@@ -487,6 +523,8 @@ def analyze(rows: list[Row], hourly: list[Row], rc: RateCard, keymap: dict, days
         "waste_share": (waste / (total * scale)) if total else 0,
         "findings": [asdict(f) for f in findings],
         "unknown_models": sorted(rc.unknown),
+        "price_version": rc.price_version,
+        "stale_prices": rc.stale(),
     }
 
 
@@ -495,16 +533,22 @@ def analyze(rows: list[Row], hourly: list[Row], rc: RateCard, keymap: dict, days
 # ---------------------------------------------------------------------------
 def write_report(res: dict, invoiced: dict[str, float], out: Path):
     out.mkdir(parents=True, exist_ok=True)
-    (out / "audit.json").write_text(json.dumps({"result": res, "invoiced": invoiced}, indent=2, default=str), encoding="utf-8")
+    basis = {p: {"basis": COST_REPORT_BASIS[p], "currencies_seen": sorted(COST_CURRENCIES_SEEN.get(p, ()))}
+             for p in invoiced}
+    (out / "audit.json").write_text(json.dumps({"result": res, "invoiced": invoiced, "cost_report_basis": basis},
+                                               indent=2, default=str), encoding="utf-8")
     m = res
     lines = []
     lines.append("# metermaid audit\n")
     lines.append(f"Window: {m.get('window_start','')[:10]} to {m.get('window_end','')[:10]} ({m['window_days']:.0f} days of data; {m.get('days_requested', m['window_days'])} requested), normalized to 30. Estimated from provider usage APIs and a local rate card; reconcile against invoices.\n")
     lines.append("## The number\n")
-    lines.append(f"- Estimated spend: **${m['estimated_spend_monthly']:,.0f}/month**")
+    lines.append(f"- Estimated spend: **${m['estimated_spend_monthly']:,.0f}/month** (rate card {m.get('price_version', 'unversioned')})")
     inv_total = sum(invoiced.values())
     if inv_total:
         lines.append(f"- Provider-reported cost for the window: ${inv_total:,.0f} (estimate for window: ${m['estimated_spend_window']:,.0f})")
+        for p in invoiced:
+            cur = sorted(COST_CURRENCIES_SEEN.get(p, ()))
+            lines.append(f"  - {p}: {COST_REPORT_BASIS[p]}" + (f"; currencies seen: {', '.join(cur)}" if cur else ""))
     lines.append(f"- Estimated waste: **${m['estimated_monthly_waste']:,.0f}/month ({m['waste_share']:.0%} of spend)**")
     lines.append(f"- Spend with no named owner: ${m['unowned_monthly']:,.0f}/month ({m['unowned_share']:.0%})")
     lines.append(f"- Share of spend on frontier-tier models: {m['frontier_share_of_spend']:.0%}\n")
@@ -533,6 +577,13 @@ def write_report(res: dict, invoiced: dict[str, float], out: Path):
         lines.append("## Models priced at tier reference (add to ratecard.json)\n")
         for u in m["unknown_models"]:
             lines.append(f"- {u}")
+    if m.get("stale_prices"):
+        lines.append("\n## Prices used here that are unverified or stale\n")
+        lines.append("Dollar figures for these models rest on prices nobody has checked recently. "
+                     "Verify them against the provider's pricing page and set `verified_on` in ratecard.json before sharing this audit.\n")
+        for sp in m["stale_prices"]:
+            when = f"verified {sp['verified_on']}, {sp['age_days']} days ago" if sp["verified_on"] else "never verified"
+            lines.append(f"- {sp['model']}: {when}")
     lines.append("\n---\nGenerated locally by metermaid audit (Phase 0). Keys were not transmitted anywhere.")
     (out / "audit.md").write_text("\n".join(lines), encoding="utf-8")
     print("\n".join(lines))
@@ -616,6 +667,13 @@ def main():
         print("  fewer days than requested: provider history limit or pagination stopped early", file=sys.stderr)
     res = analyze(rows, hourly, rc, keymap, actual_days)
     res["window_start"], res["window_end"], res["days_requested"] = lo.isoformat(), hi.isoformat(), args.days
+    for cur in COST_CURRENCIES_SEEN.values():
+        if cur - {"USD", "usd", "unstated"}:
+            print(f"  cost report returned a non-USD currency ({', '.join(sorted(cur))}); provider-reported totals are not comparable", file=sys.stderr)
+    if res["stale_prices"]:
+        names = ", ".join(sp["model"] for sp in res["stale_prices"])
+        print(f"  rate card {rc.price_version}: {len(res['stale_prices'])} price(s) used here are unverified or older than "
+              f"{rc.stale_after_days} days ({names}); see the report", file=sys.stderr)
     write_report(res, invoiced, Path(args.out))
 
 

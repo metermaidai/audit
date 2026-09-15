@@ -103,6 +103,69 @@ class TestSpendAudit(unittest.TestCase):
                 self.assertNotIn(secret, blob, f"--anon leaked {secret!r}")
 
 
+class TestRateCard(unittest.TestCase):
+    """The rate card is where every dollar in the spend audit comes from. It once priced
+    Claude Opus 5 and Sonnet 5 at the previous generation's rates (3x and 1.5x too high),
+    with nothing in the file or the report saying when any price had last been checked."""
+
+    def setUp(self):
+        self.card = json.loads((ROOT / "ratecard.json").read_text(encoding="utf-8"))
+
+    def test_card_is_versioned_and_every_row_says_when_it_was_verified(self):
+        self.assertRegex(self.card["price_version"], r"^\d{4}-\d{2}-\d{2}$")
+        for name, row in self.card["models"].items():
+            with self.subTest(model=name):
+                self.assertIn("verified_on", row, "row has no verified_on field")
+                if row["verified_on"] is not None:
+                    self.assertRegex(row["verified_on"], r"^\d{4}-\d{2}-\d{2}$")
+                for k in ("tier", "input", "output", "cache_read", "cache_write"):
+                    self.assertIn(k, row)
+
+    def test_current_claude_generation_is_not_priced_at_the_previous_one(self):
+        m = self.card["models"]
+        self.assertEqual((m["claude-opus-5"]["input"], m["claude-opus-5"]["output"]), (5.0, 25.0))
+        self.assertEqual((m["claude-sonnet-5"]["input"], m["claude-sonnet-5"]["output"]), (2.0, 10.0))
+        # the generic claude-opus-4 row is for 4 and 4.1; 4.5+ must resolve to their own rows
+        audit = load("metermaid_audit")
+        rc = audit.RateCard(ROOT / "ratecard.json")
+        self.assertEqual(rc.lookup("claude-opus-4-1-20250805")["input"], 15.0)
+        self.assertEqual(rc.lookup("claude-opus-4-6")["input"], 5.0)
+        self.assertEqual(rc.lookup("claude-sonnet-5")["input"], 2.0)
+
+    def test_report_names_the_price_version_and_lists_stale_prices(self):
+        """A card whose rows were verified long ago (or never) must say so in the report,
+        on stderr, and in the JSON, but must not stop the audit from running."""
+        with tempfile.TemporaryDirectory() as td:
+            card = json.loads((ROOT / "ratecard.json").read_text(encoding="utf-8"))
+            card["price_version"] = "2020-01-01"
+            for row in card["models"].values():
+                row["verified_on"] = "2020-01-01"
+            card["models"]["gpt-5"]["verified_on"] = None
+            rc_path = Path(td) / "old.json"
+            rc_path.write_text(json.dumps(card), encoding="utf-8")
+            r = subprocess.run([sys.executable, str(ROOT / "metermaid_audit.py"), "--demo", "--days", "30",
+                                "--out", td, "--ratecard", str(rc_path)], capture_output=True, text=True, cwd=td)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            md = (Path(td) / "audit.md").read_text(encoding="utf-8")
+            data = json.loads((Path(td) / "audit.json").read_text(encoding="utf-8"))["result"]
+            self.assertIn("rate card 2020-01-01", md)
+            self.assertIn("unverified or stale", md)
+            self.assertIn("gpt-5: never verified", md)
+            self.assertIn("older than 90 days", r.stderr)
+            stale = {s["model"]: s for s in data["stale_prices"]}
+            self.assertIsNone(stale["gpt-5"]["verified_on"])
+            self.assertGreater(stale["gpt-4o"]["age_days"], 90)
+            # only models the run actually priced are listed; the demo never touches o3
+            self.assertNotIn("o3", stale)
+
+    def test_fresh_prices_produce_no_stale_section(self):
+        audit = load("metermaid_audit")
+        from datetime import datetime, timezone
+        rc = audit.RateCard(ROOT / "ratecard.json", today=datetime(2026, 9, 15, tzinfo=timezone.utc))
+        rc.lookup("claude-opus-5")
+        self.assertEqual(rc.stale(), [])
+
+
 class TestDetectors(unittest.TestCase):
     """The detectors trajectory_audit.py advertises, on hand-built trajectories."""
 

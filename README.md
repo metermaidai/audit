@@ -11,7 +11,7 @@ Open-source tools behind [the Agent Waste Index](https://metermaid.ai/agent-wast
 | `benchmark.py` | Turns one trajectory audit into a report positioned against the Index: cost by run length, the four-bucket split, and where each number sits among the Index's 29 public groups. Reads only the aggregates, writes one self-contained HTML page. |
 | `pipeline.py` | The scaled pipeline: streams trajectory datasets from Hugging Face, parses nine formats, detects at ingest, writes Parquet, reports with DuckDB. Produces the Index. |
 | `hf_pull.py`, `hf_batch.py` | Earlier per-file tooling for pulling Hugging Face trajectory datasets and sampling raw rows for new parsers. `pipeline.py` supersedes them for analysis. |
-| `ratecard.json` | Per-model prices used by the spend audit. Verify against provider pricing pages before sharing an audit. |
+| `ratecard.json` | Per-model prices used by the spend audit. Carries a `price_version` and a `verified_on` date per model; the audit prints the version in every report and lists any price it used that is unverified or older than 90 days. Check those against the provider's pricing page before sharing an audit. |
 | `keymap.example.json` | Map key / project ids to agents and owners. Copy to `keymap.json`. |
 
 ## Spend audit
