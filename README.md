@@ -123,6 +123,7 @@ thing you can do to your traces.
 ```bash
 python -m pip install datasets pyarrow duckdb
 python pipeline.py sweep --limit 20000      # every registered dataset/config/split -> data/runs/*.parquet
+python pipeline.py sweep --limit 20000 --resume   # after an interruption: skips splits whose shard exists
 python pipeline.py report                   # -> report/index.md, report/index.json
 python pipeline.py ingest <dataset> --config <cfg> --split <split> --limit N
 python pipeline.py ingest-json samples/*.json   # parse raw rows to test a new format
