@@ -203,9 +203,13 @@ def fetch_anthropic_usage(admin_key: str, start: datetime, end: datetime, width:
 # assumptions the "provider-reported cost" line rests on; the audit prints them so a
 # reader can check them against a live response rather than trust the number.
 COST_REPORT_BASIS = {
-    "anthropic": "cost_report amount read as a decimal string in cents and divided by 100; currency field checked, USD expected",
-    "openai": "costs amount.value read as USD",
+    "anthropic": "cost_report amount read as a decimal string in cents and divided by 100; currency field checked, USD expected "
+                 "(verified 2026-09-15 with --probe against a live response: amount \"33.438\" USD for usage priced at $0.33, ratio 1.00)",
+    "openai": "costs amount.value read as USD (not yet verified with --probe)",
 }
+# The Anthropic cost_report row also carries model, token_type, service_tier, context_window,
+# inference_geo, cost_type and description. They are null when grouped by workspace only, as here;
+# a per-model reconciliation would add them to group_by[].
 COST_CURRENCIES_SEEN: dict[str, set] = defaultdict(set)
 COST_RAW_SUM: dict[str, float] = defaultdict(float)          # amounts as the API returned them, before any unit conversion
 COST_RAW_SAMPLES: dict[str, list] = defaultdict(list)        # a few raw result rows with ids stripped, for --probe

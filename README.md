@@ -45,6 +45,9 @@ reads the cost report both ways, and says which reading matches, with the raw ro
 (ids stripped) so the response shape is on record. Paste the output into an issue if it says
 CONTRADICTS. `--days N` widens the window up to 7.
 
+Status: the Anthropic reading (cents) was verified this way on 2026-09-15, ratio 1.00 to the
+usage-priced estimate. The OpenAI reading (dollars) has not been probed yet.
+
 ## Trajectory audit
 
 ```bash
