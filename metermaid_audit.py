@@ -4,7 +4,8 @@ metermaid audit — Phase 0
 
 Pulls 30 days of usage and cost from the Anthropic and OpenAI admin APIs,
 prices it, and writes a one-page audit: spend, unowned share, over-tier share,
-estimated monthly waste, and the top fixes.
+the findings ranked by dollars with the evidence and assumption behind each, and a
+non-additive opportunity range (the findings overlap and are never summed).
 
 Runs entirely on the operator's machine. Keys never leave it.
 
@@ -336,15 +337,58 @@ def demo_rows(start: datetime, days: int) -> tuple[list[Row], dict[str, float]]:
 # ---------------------------------------------------------------------------
 # Analysis
 # ---------------------------------------------------------------------------
+# How far to trust a finding's dollar figure. Two levels, stated in words, in place of the
+# hard-coded 0.5-1.0 "confidence" the earlier report printed as if it were a probability.
+#   observed  the dollars happened; the usage data shows them directly. Whether they were
+#             avoidable is a judgement the reader makes with the evidence line.
+#   modeled   the dollars follow from a stated assumption (half the traffic can move tier,
+#             half the input is a repeatable prefix, 24h turnaround is acceptable). The
+#             assumption is printed next to the number so it can be argued with.
+OBSERVED, MODELED = "observed", "modeled"
+
+
 @dataclass
 class Finding:
     id: str
     title: str
     scope: str
     monthly_waste: float
-    confidence: float
+    evidence_level: str      # OBSERVED | MODELED
     evidence: str
     fix: str
+    assumption: str = ""     # what the dollar figure rests on, for modeled findings
+
+
+def opportunity_range(findings: list[Finding], key_monthly_cost: dict[str, float], total_monthly: float) -> dict:
+    """The findings overlap, so they are never summed into one waste bill.
+
+    L01 reprices a key's frontier tokens; L05 reprices the same key's input tokens; L06 prices
+    growth in the same input; L10 discounts all of it. Adding them counts the same dollars two
+    or three times. What can be said honestly:
+
+      low   the largest single finding: at least this much is on the table if that one fix works
+      high  the findings summed, but capped per key at that key's own monthly spend, and overall
+            at total spend: even if every fix worked and nothing overlapped, no more than this
+
+    The naive sum is kept in the output so anyone can see what the cap removed.
+    """
+    priced = [f for f in findings if f.monthly_waste > 0]
+    if not priced:
+        return {"low": 0.0, "high": 0.0, "naive_sum": 0.0, "findings": 0, "share_of_spend_high": 0.0,
+                "basis": "no priced findings"}
+    naive = sum(f.monthly_waste for f in priced)
+    by_scope = defaultdict(float)
+    for f in priced:
+        by_scope[f.scope] += f.monthly_waste
+    high = sum(min(v, key_monthly_cost.get(scope, v)) for scope, v in by_scope.items())
+    high = min(high, total_monthly) if total_monthly else high
+    low = max(f.monthly_waste for f in priced)
+    return {
+        "low": low, "high": high, "naive_sum": naive, "findings": len(priced),
+        "share_of_spend_high": (high / total_monthly) if total_monthly else 0.0,
+        "basis": "low is the largest single finding; high is the findings summed but capped at each key's own spend. "
+                 "Findings overlap, so the true figure is somewhere between and is never the naive sum.",
+    }
 
 
 def key_label(r: Row, keymap: dict) -> tuple[str, str]:
@@ -400,7 +444,7 @@ def analyze(rows: list[Row], hourly: list[Row], rc: RateCard, keymap: dict, days
         if not owner:
             unowned += k["cost"]
     if total and unowned / total > 0.05:
-        findings.append(Finding("L02", "Spend with no named owner", "org", 0.0, 1.0,
+        findings.append(Finding("L02", "Spend with no named owner", "org", 0.0, OBSERVED,
                                 f"${unowned * scale:,.0f}/mo ({unowned / total:.0%} of spend) is on keys/projects not in keymap.json",
                                 "Assign an owner to every key; rotate keys nobody claims within 14 days"))
 
@@ -426,11 +470,12 @@ def analyze(rows: list[Row], hourly: list[Row], rc: RateCard, keymap: dict, days
                            + r.tokens_out * mid["output"] for r in fr_rows) / 1e6
             delta = (k["frontier_cost"] - mid_cost) * 0.5 * scale
             if delta > 100:
-                findings.append(Finding("L01", "Frontier model on short, high-volume traffic", label, delta, 0.6,
+                findings.append(Finding("L01", "Frontier model on short, high-volume traffic", label, delta, MODELED,
                                         f"{frontier_share:.0%} of tokens on frontier tier; "
                                         + (f"avg output {avg_out:.0f} tokens; " if avg_out is not None else f"output/input ratio {out_ratio:.2f}; ")
                                         + f"{month_tokens / 1e6:,.0f}M tokens/mo; ${k['frontier_cost'] * scale:,.0f}/mo on frontier",
-                                        "Route this task shape to a mid-tier model; validate on a 200-task shadow replay before switching"))
+                                        "Route this task shape to a mid-tier model; validate on a 200-task shadow replay before switching",
+                                        "half of this frontier traffic can move to the mid-tier reference price at acceptable quality"))
 
         # L05 cache under-use (priced at mid-tier if L01 already fired, to avoid double counting)
         in_total = in_all
@@ -443,10 +488,12 @@ def analyze(rows: list[Row], hourly: list[Row], rc: RateCard, keymap: dict, days
                     inp = rc.tier_ref("mid")["input"]
                 saving = k["tokens_in"] * 0.5 * (inp - inp * 0.1) / 1e6 * scale
                 if saving > 100:
-                    findings.append(Finding("L05", "Prompt caching unused or ineffective", label, saving, 0.5,
+                    findings.append(Finding("L05", "Prompt caching unused or ineffective", label, saving, MODELED,
                                             f"cache reads are {cache_share:.0%} of input tokens; "
                                             f"{k['tokens_in'] * scale / 1e6:,.1f}M uncached input tokens/mo",
-                                            "Move the stable system prompt and tool definitions to a cached prefix; assumes ~50% of input is repeated prefix"))
+                                            "Move the stable system prompt and tool definitions to a cached prefix",
+                                            "about half of the uncached input is a repeated prefix that would read from cache at 10% of the input price"
+                                            + ("; priced at the mid-tier rate because L01 already reprices this key" if inp != spec["input"] else "")))
 
         # L06 token growth (first vs last 7 days)
         first = [r for r in k["rows"] if r.bucket_start < r0.bucket_start + timedelta(days=7)]
@@ -468,9 +515,10 @@ def analyze(rows: list[Row], hourly: list[Row], rc: RateCard, keymap: dict, days
                 excess = (l_tpr - f_tpr) * base * (30 / 7) * spec["input"] / 1e6
                 if excess > 100:
                     unit = "input tokens/request" if fr > 200 else "input tokens per output token"
-                    findings.append(Finding("L06", "Input context growing with flat volume", label, excess, 0.6,
+                    findings.append(Finding("L06", "Input context growing with flat volume", label, excess, MODELED,
                                             f"{f_tpr:,.1f} → {l_tpr:,.1f} {unit}, first vs last 7 days",
-                                            "Trim accumulated context; truncate or summarize tool output; check for history not being compacted"))
+                                            "Trim accumulated context; truncate or summarize tool output; check for history not being compacted",
+                                            "the growth in input per request over the window is avoidable and continues at the last-7-day rate"))
 
         # L07 velocity anomaly (daily spend)
         daily = defaultdict(float)
@@ -482,9 +530,10 @@ def analyze(rows: list[Row], hourly: list[Row], rc: RateCard, keymap: dict, days
             spikes = [(d, v) for d, v in daily.items() if sd > 0 and v > mu + 3 * sd and v - mu > 50]
             if spikes:
                 excess = sum(v - mu for _, v in spikes)
-                findings.append(Finding("L07", "Spend spike outside normal range", label, excess * scale, 0.7,
+                findings.append(Finding("L07", "Spend spike outside normal range", label, excess * scale, OBSERVED,
                                         f"{len(spikes)} day(s) above mean+3σ; largest ${max(v for _, v in spikes):,.0f} vs typical ${mu:,.0f}/day",
-                                        "Set a daily budget alert on this key; add a rate limit or circuit breaker at the gateway"))
+                                        "Set a daily budget alert on this key; add a rate limit or circuit breaker at the gateway",
+                                        "the excess over the key's mean daily spend was not intended; a planned backfill would look the same"))
 
         # L10 batch-eligible (hour-of-day from the hourly sample)
         hours = k["hours"]
@@ -497,12 +546,14 @@ def analyze(rows: list[Row], hourly: list[Row], rc: RateCard, keymap: dict, days
             if best / hourly_total > 0.8:
                 saving = month_cost * (1 - batch_share) * 0.5
                 if saving > 100:
-                    findings.append(Finding("L10", "Nightly/bursty workload not on batch pricing", label, saving, 0.7,
+                    findings.append(Finding("L10", "Nightly/bursty workload not on batch pricing", label, saving, MODELED,
                                             f"{best / hourly_total:.0%} of tokens land in a 2-hour daily window (last 7 days); batch share {batch_share:.0%}",
-                                            "Move to the Batch API (50% discount) if 24h turnaround is acceptable"))
+                                            "Move to the Batch API (50% discount) if 24h turnaround is acceptable",
+                                            "the whole workload tolerates 24h turnaround and the provider's 50% batch discount applies to all of it"))
 
     findings.sort(key=lambda f: f.monthly_waste, reverse=True)
-    waste = sum(f.monthly_waste for f in findings)
+    opportunity = opportunity_range(findings, {key_label(k["rows"][0], keymap)[0]: k["cost"] * scale
+                                               for k in by_key.values()}, total * scale)
     top_keys = sorted(by_key.items(), key=lambda kv: kv[1]["cost"], reverse=True)[:10]
 
     return {
@@ -519,8 +570,7 @@ def analyze(rows: list[Row], hourly: list[Row], rc: RateCard, keymap: dict, days
         "unowned_monthly": unowned * scale,
         "unowned_share": (unowned / total) if total else 0,
         "frontier_share_of_spend": (sum(r.est_cost for r in rows if r.tier == "frontier") / total) if total else 0,
-        "estimated_monthly_waste": waste,
-        "waste_share": (waste / (total * scale)) if total else 0,
+        "opportunity": opportunity,
         "findings": [asdict(f) for f in findings],
         "unknown_models": sorted(rc.unknown),
         "price_version": rc.price_version,
@@ -549,7 +599,12 @@ def write_report(res: dict, invoiced: dict[str, float], out: Path):
         for p in invoiced:
             cur = sorted(COST_CURRENCIES_SEEN.get(p, ()))
             lines.append(f"  - {p}: {COST_REPORT_BASIS[p]}" + (f"; currencies seen: {', '.join(cur)}" if cur else ""))
-    lines.append(f"- Estimated waste: **${m['estimated_monthly_waste']:,.0f}/month ({m['waste_share']:.0%} of spend)**")
+    op = m["opportunity"]
+    if op["findings"]:
+        lines.append(f"- Opportunity: **${op['low']:,.0f} to ${op['high']:,.0f}/month** across {op['findings']} priced finding(s), "
+                     f"up to {op['share_of_spend_high']:.0%} of spend. {op['basis']}")
+    else:
+        lines.append("- Opportunity: no priced findings above threshold.")
     lines.append(f"- Spend with no named owner: ${m['unowned_monthly']:,.0f}/month ({m['unowned_share']:.0%})")
     lines.append(f"- Share of spend on frontier-tier models: {m['frontier_share_of_spend']:.0%}\n")
     lines.append("## Spend by provider\n")
@@ -565,13 +620,18 @@ def write_report(res: dict, invoiced: dict[str, float], out: Path):
         req = f"{k['requests_monthly']:,.0f}" if k["requests_monthly"] else "n/a"
         lines.append(f"| {k['label']} | {k['owner'] or '—'} | ${k['monthly_cost']:,.0f} | {k['tokens_monthly'] / 1e6:,.1f} | {req} | {k['frontier_share']:.0%} |")
     lines.append("\n## Findings, ranked by dollars\n")
+    lines.append("Each dollar figure is either *observed* (the usage data shows the spend directly) or *modeled* "
+                 "(it follows from the assumption printed with it). Figures overlap across findings on the same key "
+                 "and are not additive.\n")
     if not m["findings"]:
         lines.append("No findings above threshold. Either this is a clean estate or the window is too short.")
     for i, f in enumerate(m["findings"], 1):
         amt = f"${f['monthly_waste']:,.0f}/month" if f["monthly_waste"] else "governance"
         lines.append(f"### {i}. {f['title']} — {amt}")
-        lines.append(f"- Scope: {f['scope']}  ·  Detector {f['id']}  ·  Confidence {f['confidence']:.0%}")
+        lines.append(f"- Scope: {f['scope']}  ·  Detector {f['id']}  ·  Evidence: {f['evidence_level']}")
         lines.append(f"- Evidence: {f['evidence']}")
+        if f.get("assumption"):
+            lines.append(f"- Assumes: {f['assumption']}")
         lines.append(f"- Fix: {f['fix']}\n")
     if m["unknown_models"]:
         lines.append("## Models priced at tier reference (add to ratecard.json)\n")

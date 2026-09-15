@@ -25,7 +25,7 @@ export OPENAI_ADMIN_KEY=sk-admin-...          # platform.openai.com → Organiza
 python metermaid_audit.py --days 30 --anon
 ```
 
-Reads usage (daily for the window, hourly for the last 7 days) and cost reports, prices usage from `ratecard.json`, and writes `audit/audit.md` and `audit/audit.json`. No keys? `--demo` runs on synthetic data.
+Reads usage (daily for the window, hourly for the last 7 days) and cost reports, prices usage from `ratecard.json`, and writes `audit/audit.md` and `audit/audit.json`. Each finding's dollar figure is labelled *observed* or *modeled* with the assumption it rests on, and the headline is a range (largest single finding to the capped sum) because findings on the same key overlap and are never added up. No keys? `--demo` runs on synthetic data.
 
 ## Trajectory audit
 

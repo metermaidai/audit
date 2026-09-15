@@ -273,6 +273,61 @@ class TestShareExport(unittest.TestCase):
         self.assertIn("never contains", r.stdout)
 
 
+class TestOpportunityAccounting(unittest.TestCase):
+    """The spend audit once summed every finding into one waste bill and printed a literal
+    0.5-1.0 "confidence" per detector as if it were a probability. Findings on one key
+    reprice the same tokens, so the sum double-counts; the report now gives a range."""
+
+    def _demo(self, td: str) -> tuple[dict, str]:
+        subprocess.run([sys.executable, str(ROOT / "metermaid_audit.py"), "--demo", "--days", "30", "--out", td],
+                       check=True, capture_output=True, cwd=td)
+        return (json.loads((Path(td) / "audit.json").read_text(encoding="utf-8"))["result"],
+                (Path(td) / "audit.md").read_text(encoding="utf-8"))
+
+    def test_headline_is_a_range_not_a_sum(self):
+        with tempfile.TemporaryDirectory() as td:
+            res, md = self._demo(td)
+        op = res["opportunity"]
+        priced = [f["monthly_waste"] for f in res["findings"] if f["monthly_waste"] > 0]
+        self.assertEqual(op["findings"], len(priced))
+        self.assertAlmostEqual(op["low"], max(priced))
+        self.assertAlmostEqual(op["naive_sum"], sum(priced))
+        self.assertLessEqual(op["low"], op["high"])
+        self.assertLessEqual(op["high"], op["naive_sum"])
+        self.assertLessEqual(op["high"], res["estimated_spend_monthly"])
+        self.assertNotIn("estimated_monthly_waste", res)
+        self.assertIn("Opportunity:", md)
+        self.assertIn("never the naive sum", md)
+        self.assertNotIn("Estimated waste", md)
+
+    def test_high_bound_is_capped_at_each_keys_own_spend(self):
+        audit = load("metermaid_audit")
+        F = audit.Finding
+        fs = [F("L01", "a", "agent-x", 600.0, audit.MODELED, "", ""),
+              F("L05", "b", "agent-x", 500.0, audit.MODELED, "", ""),
+              F("L10", "c", "agent-y", 100.0, audit.MODELED, "", ""),
+              F("L02", "d", "org", 0.0, audit.OBSERVED, "", "")]
+        op = audit.opportunity_range(fs, {"agent-x": 800.0, "agent-y": 1000.0}, 5000.0)
+        self.assertEqual(op["low"], 600.0)
+        self.assertEqual(op["naive_sum"], 1200.0)
+        self.assertEqual(op["high"], 900.0, "agent-x's two findings must be capped at its $800 spend")
+        self.assertEqual(op["findings"], 3)
+        self.assertEqual(audit.opportunity_range([fs[-1]], {}, 5000.0)["findings"], 0)
+
+    def test_every_finding_states_its_evidence_level_and_no_confidence_number(self):
+        with tempfile.TemporaryDirectory() as td:
+            res, md = self._demo(td)
+        for f in res["findings"]:
+            with self.subTest(finding=f["id"]):
+                self.assertIn(f["evidence_level"], ("observed", "modeled"))
+                self.assertNotIn("confidence", f)
+                if f["evidence_level"] == "modeled":
+                    self.assertTrue(f["assumption"], "a modeled figure must state its assumption")
+        self.assertNotIn("Confidence", md)
+        self.assertIn("Evidence: modeled", md)
+        self.assertIn("- Assumes:", md)
+
+
 class TestDetectors(unittest.TestCase):
     """The detectors trajectory_audit.py advertises, on hand-built trajectories."""
 
