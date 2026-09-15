@@ -129,7 +129,7 @@ python pipeline.py ingest <dataset> --config <cfg> --split <split> --limit N
 python pipeline.py ingest-json samples/*.json   # parse raw rows to test a new format
 ```
 
-Registered datasets, formats, and end-of-run rules live in `REGISTRY` and the parsers at the top of `pipeline.py`. Edition 1 covers 341,054 runs from 11 datasets — 29 dataset/model/scaffold groups, 16 model labels, 4 scaffold families. The report is in `report/`, with method, caveats and retractions in [`report/notes.md`](report/notes.md).
+Registered datasets, formats, and end-of-run rules live in `REGISTRY` and the parsers at the top of `pipeline.py`. Edition 1.1 covers 341,054 runs from 11 datasets — 29 dataset/model/scaffold groups, 16 model labels, 4 scaffold families. The report is in `report/`, with method, caveats and retractions in [`report/notes.md`](report/notes.md).
 
 Headline findings are in the Index; method, caveats and retractions are in [`report/notes.md`](report/notes.md) — read those before quoting anything. Dollars in the Index are estimated (characters/4, Sonnet-class rates, with and without cached input pricing); quote the percentages.
 

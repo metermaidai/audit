@@ -2,66 +2,6 @@
  "total_runs": 341054,
  "groups": [
   {
-   "dataset": "nvidia/SWE-Hero-openhands-trajectories",
-   "config": "default",
-   "split": "train",
-   "model": "Qwen3-Coder-480B",
-   "scaffold": "openhands",
-   "runs": 20000,
-   "mean_steps": 61.84005,
-   "median_steps": 60.0,
-   "est_cost": 77046.6692550003,
-   "mech_share": 0.03566698599404184,
-   "sunk_share": 0.0,
-   "loop_rate": 0.00155,
-   "retry_rate": 0.0044,
-   "bloat_rate": 0.5825,
-   "ctx_rate": 0.0,
-   "sunk_rate": 0.0,
-   "finding_rate": 0.58475,
-   "thrash_rate": 0.775,
-   "resolve": null,
-   "resolve_flag": null,
-   "resolve_clean": null,
-   "resolve_loop": null,
-   "resolve_retry": null,
-   "resolve_bloat": null,
-   "resolve_nobloat": null,
-   "resolve_sunk": null,
-   "n_resolved_known": 0,
-   "top_terminal": "submitted"
-  },
-  {
-   "dataset": "nvidia/Open-SWE-Traces",
-   "config": "v1.0",
-   "split": "openhands",
-   "model": "Open-SWE v1.0 (see card)",
-   "scaffold": "openhands",
-   "runs": 20000,
-   "mean_steps": 58.81655,
-   "median_steps": 54.0,
-   "est_cost": 87695.46607200014,
-   "mech_share": 0.0112091546852957,
-   "sunk_share": 0.0,
-   "loop_rate": 0.0122,
-   "retry_rate": 0.00555,
-   "bloat_rate": 0.34825,
-   "ctx_rate": 0.0,
-   "sunk_rate": 0.0,
-   "finding_rate": 0.36,
-   "thrash_rate": 0.65555,
-   "resolve": 0.4366711512588891,
-   "resolve_flag": 0.44326117318435754,
-   "resolve_clean": 0.43285092601963365,
-   "resolve_loop": 0.34355828220858897,
-   "resolve_retry": 0.4,
-   "resolve_bloat": 0.4460405817920632,
-   "resolve_nobloat": 0.43147410358565735,
-   "resolve_sunk": null,
-   "n_resolved_known": 15609,
-   "top_terminal": "submitted"
-  },
-  {
    "dataset": "nvidia/SWE-Zero-openhands-trajectories",
    "config": "default",
    "split": "train",
@@ -92,24 +32,54 @@
    "top_terminal": "submitted"
   },
   {
-   "dataset": "nvidia/Open-SWE-Traces",
-   "config": "v1.2",
-   "split": "minisweagent",
-   "model": "Open-SWE v1.2 (see card)",
-   "scaffold": "minisweagent",
+   "dataset": "ricdomolm/mini-coder-trajs-400k",
+   "config": "default",
+   "split": "train",
+   "model": "qwen3-coder-30b",
+   "scaffold": "mini-swe-agent",
    "runs": 20000,
-   "mean_steps": 55.84925,
-   "median_steps": 47.0,
-   "est_cost": 67769.8599419998,
-   "mech_share": 0.0010762091634595845,
-   "sunk_share": 0.0,
-   "loop_rate": 0.00295,
-   "retry_rate": 0.00095,
-   "bloat_rate": 0.0018,
+   "mean_steps": 34.3433,
+   "median_steps": 30.0,
+   "est_cost": 14376.530532000053,
+   "mech_share": 0.0006873182035253656,
+   "sunk_share": 0.0013227241411043337,
+   "loop_rate": 0.0074,
+   "retry_rate": 0.01055,
+   "bloat_rate": 0.0,
    "ctx_rate": 0.0,
-   "sunk_rate": 0.0,
-   "finding_rate": 0.0056,
-   "thrash_rate": 5e-05,
+   "sunk_rate": 0.0004,
+   "finding_rate": 0.01785,
+   "thrash_rate": 0.0,
+   "resolve": 0.1933,
+   "resolve_flag": 0.1400560224089636,
+   "resolve_clean": 0.19426767805325051,
+   "resolve_loop": 0.10135135135135136,
+   "resolve_retry": 0.16587677725118483,
+   "resolve_bloat": null,
+   "resolve_nobloat": 0.1933,
+   "resolve_sunk": 0.125,
+   "n_resolved_known": 20000,
+   "top_terminal": "submitted"
+  },
+  {
+   "dataset": "AlienKevin/SWE-ZERO-12M-trajectories",
+   "config": "default",
+   "split": "train",
+   "model": "mini-coder-1.7B",
+   "scaffold": "mini-swe-agent-1",
+   "runs": 20000,
+   "mean_steps": 15.10035,
+   "median_steps": 15.0,
+   "est_cost": 3079.6708919999774,
+   "mech_share": 0.0012498424689763418,
+   "sunk_share": 0.9771944238644314,
+   "loop_rate": 0.0131,
+   "retry_rate": 0.0064,
+   "bloat_rate": 0.0,
+   "ctx_rate": 0.0,
+   "sunk_rate": 0.96755,
+   "finding_rate": 0.9679,
+   "thrash_rate": 0.0,
    "resolve": null,
    "resolve_flag": null,
    "resolve_clean": null,
@@ -119,6 +89,36 @@
    "resolve_nobloat": null,
    "resolve_sunk": null,
    "n_resolved_known": 0,
+   "top_terminal": "incomplete"
+  },
+  {
+   "dataset": "nvidia/Open-SWE-Traces",
+   "config": "v1.0",
+   "split": "sweagent",
+   "model": "Open-SWE v1.0 (see card)",
+   "scaffold": "sweagent",
+   "runs": 20000,
+   "mean_steps": 72.91625,
+   "median_steps": 67.0,
+   "est_cost": 133023.65078699967,
+   "mech_share": 0.09503334789124429,
+   "sunk_share": 5.620556161078306e-05,
+   "loop_rate": 0.0397,
+   "retry_rate": 0.00855,
+   "bloat_rate": 0.53875,
+   "ctx_rate": 0.0,
+   "sunk_rate": 5e-05,
+   "finding_rate": 0.55605,
+   "thrash_rate": 0.75225,
+   "resolve": 0.4797401595060458,
+   "resolve_flag": 0.4470574191237913,
+   "resolve_clean": 0.5179193975735602,
+   "resolve_loop": 0.43157894736842106,
+   "resolve_retry": 0.48333333333333334,
+   "resolve_bloat": 0.44598917322834647,
+   "resolve_nobloat": 0.5167115902964959,
+   "resolve_sunk": 1.0,
+   "n_resolved_known": 15548,
    "top_terminal": "submitted"
   },
   {
@@ -152,33 +152,33 @@
    "top_terminal": "submitted"
   },
   {
-   "dataset": "ricdomolm/mini-coder-trajs-400k",
+   "dataset": "open-thoughts/AgentTrove",
    "config": "default",
    "split": "train",
-   "model": "qwen3-coder-30b",
-   "scaffold": "mini-swe-agent",
+   "model": "gpt-5-nano-2025-08-07",
+   "scaffold": "terminus-2",
    "runs": 20000,
-   "mean_steps": 34.3433,
-   "median_steps": 30.0,
-   "est_cost": 14376.563013000052,
-   "mech_share": 0.0006892342492634273,
-   "sunk_share": 0.015742852362928605,
-   "loop_rate": 0.00745,
-   "retry_rate": 0.01055,
-   "bloat_rate": 0.0,
+   "mean_steps": 5.0119,
+   "median_steps": 5.0,
+   "est_cost": 959.3929379999984,
+   "mech_share": 0.027920231533655863,
+   "sunk_share": 0.6499027638245986,
+   "loop_rate": 0.04595,
+   "retry_rate": 0.051,
+   "bloat_rate": 0.0002,
    "ctx_rate": 0.0,
-   "sunk_rate": 0.024,
-   "finding_rate": 0.04095,
+   "sunk_rate": 0.3299,
+   "finding_rate": 0.3497,
    "thrash_rate": 0.0,
-   "resolve": 0.1933,
-   "resolve_flag": 0.2271062271062271,
-   "resolve_clean": 0.19185652468588707,
-   "resolve_loop": 0.10067114093959731,
-   "resolve_retry": 0.16587677725118483,
+   "resolve": null,
+   "resolve_flag": null,
+   "resolve_clean": null,
+   "resolve_loop": null,
+   "resolve_retry": null,
    "resolve_bloat": null,
-   "resolve_nobloat": 0.1933,
-   "resolve_sunk": 0.29375,
-   "n_resolved_known": 20000,
+   "resolve_nobloat": null,
+   "resolve_sunk": null,
+   "n_resolved_known": 0,
    "top_terminal": "submitted"
   },
   {
@@ -200,106 +200,16 @@
    "sunk_rate": 0.00015,
    "finding_rate": 0.56495,
    "thrash_rate": 0.76125,
-   "resolve": null,
-   "resolve_flag": null,
-   "resolve_clean": null,
-   "resolve_loop": null,
-   "resolve_retry": null,
-   "resolve_bloat": null,
-   "resolve_nobloat": null,
-   "resolve_sunk": null,
-   "n_resolved_known": 0,
+   "resolve": 0.5337761765368161,
+   "resolve_flag": 0.49740363491112444,
+   "resolve_clean": 0.5807741935483871,
+   "resolve_loop": 0.5,
+   "resolve_retry": 0.42065491183879095,
+   "resolve_bloat": 0.4998457583547558,
+   "resolve_nobloat": 0.57482273914666,
+   "resolve_sunk": 0.3333333333333333,
+   "n_resolved_known": 17764,
    "top_terminal": "submitted"
-  },
-  {
-   "dataset": "open-thoughts/AgentTrove",
-   "config": "default",
-   "split": "train",
-   "model": "gpt-5-nano-2025-08-07",
-   "scaffold": "terminus-2",
-   "runs": 20000,
-   "mean_steps": 5.0119,
-   "median_steps": 5.0,
-   "est_cost": 959.5742520000001,
-   "mech_share": 0.03066078183643119,
-   "sunk_share": 0.6499068005422046,
-   "loop_rate": 0.06,
-   "retry_rate": 0.051,
-   "bloat_rate": 0.0002,
-   "ctx_rate": 0.0,
-   "sunk_rate": 0.3299,
-   "finding_rate": 0.3561,
-   "thrash_rate": 0.0,
-   "resolve": null,
-   "resolve_flag": null,
-   "resolve_clean": null,
-   "resolve_loop": null,
-   "resolve_retry": null,
-   "resolve_bloat": null,
-   "resolve_nobloat": null,
-   "resolve_sunk": null,
-   "n_resolved_known": 0,
-   "top_terminal": "submitted"
-  },
-  {
-   "dataset": "nvidia/Open-SWE-Traces",
-   "config": "v1.0",
-   "split": "sweagent",
-   "model": "Open-SWE v1.0 (see card)",
-   "scaffold": "sweagent",
-   "runs": 20000,
-   "mean_steps": 72.91625,
-   "median_steps": 67.0,
-   "est_cost": 133023.65078699967,
-   "mech_share": 0.09503334789124429,
-   "sunk_share": 5.620556161078306e-05,
-   "loop_rate": 0.0397,
-   "retry_rate": 0.00855,
-   "bloat_rate": 0.53875,
-   "ctx_rate": 0.0,
-   "sunk_rate": 5e-05,
-   "finding_rate": 0.55605,
-   "thrash_rate": 0.75225,
-   "resolve": 0.4797401595060458,
-   "resolve_flag": 0.4470574191237913,
-   "resolve_clean": 0.5179193975735602,
-   "resolve_loop": 0.43157894736842106,
-   "resolve_retry": 0.48333333333333334,
-   "resolve_bloat": 0.44598917322834647,
-   "resolve_nobloat": 0.5167115902964959,
-   "resolve_sunk": 1.0,
-   "n_resolved_known": 15548,
-   "top_terminal": "submitted"
-  },
-  {
-   "dataset": "AlienKevin/SWE-ZERO-12M-trajectories",
-   "config": "default",
-   "split": "train",
-   "model": "mini-coder-1.7B",
-   "scaffold": "mini-swe-agent-1",
-   "runs": 20000,
-   "mean_steps": 15.10035,
-   "median_steps": 15.0,
-   "est_cost": 3080.980481999986,
-   "mech_share": 0.0013498054891131356,
-   "sunk_share": 0.9771918126679003,
-   "loop_rate": 0.01415,
-   "retry_rate": 0.0064,
-   "bloat_rate": 0.0,
-   "ctx_rate": 0.0,
-   "sunk_rate": 0.96755,
-   "finding_rate": 0.96795,
-   "thrash_rate": 0.0,
-   "resolve": null,
-   "resolve_flag": null,
-   "resolve_clean": null,
-   "resolve_loop": null,
-   "resolve_retry": null,
-   "resolve_bloat": null,
-   "resolve_nobloat": null,
-   "resolve_sunk": null,
-   "n_resolved_known": 0,
-   "top_terminal": "incomplete"
   },
   {
    "dataset": "nvidia/Open-SWE-Traces",
@@ -310,8 +220,8 @@
    "runs": 20000,
    "mean_steps": 56.0482,
    "median_steps": 51.0,
-   "est_cost": 51008.76345300002,
-   "mech_share": 0.0002539738294748161,
+   "est_cost": 51009.47269500003,
+   "mech_share": 0.00025397029819136516,
    "sunk_share": 0.0,
    "loop_rate": 0.0012,
    "retry_rate": 0.00225,
@@ -320,15 +230,15 @@
    "sunk_rate": 0.0,
    "finding_rate": 0.0039,
    "thrash_rate": 5e-05,
-   "resolve": null,
-   "resolve_flag": null,
-   "resolve_clean": null,
-   "resolve_loop": null,
-   "resolve_retry": null,
-   "resolve_bloat": null,
-   "resolve_nobloat": null,
+   "resolve": 0.2963632256607183,
+   "resolve_flag": 0.29577464788732394,
+   "resolve_clean": 0.2963655950558485,
+   "resolve_loop": 0.2608695652173913,
+   "resolve_retry": 0.325,
+   "resolve_bloat": 0.2,
+   "resolve_nobloat": 0.29641767431348176,
    "resolve_sunk": null,
-   "n_resolved_known": 0,
+   "n_resolved_known": 17708,
    "top_terminal": "submitted"
   },
   {
@@ -340,9 +250,9 @@
    "runs": 20000,
    "mean_steps": 64.39005,
    "median_steps": 61.0,
-   "est_cost": 100450.2598679994,
-   "mech_share": 0.05153229576604167,
-   "sunk_share": 0.17055903218681442,
+   "est_cost": 100450.43430299932,
+   "mech_share": 0.05153220888381296,
+   "sunk_share": 0.17055887637400116,
    "loop_rate": 0.0129,
    "retry_rate": 0.0102,
    "bloat_rate": 0.72295,
@@ -362,6 +272,96 @@
    "top_terminal": "submitted"
   },
   {
+   "dataset": "nvidia/Open-SWE-Traces",
+   "config": "v1.2",
+   "split": "minisweagent",
+   "model": "Open-SWE v1.2 (see card)",
+   "scaffold": "minisweagent",
+   "runs": 20000,
+   "mean_steps": 55.84925,
+   "median_steps": 47.0,
+   "est_cost": 78286.11269099971,
+   "mech_share": 0.0010010829005463364,
+   "sunk_share": 0.0,
+   "loop_rate": 0.00295,
+   "retry_rate": 0.001,
+   "bloat_rate": 0.0019,
+   "ctx_rate": 0.0,
+   "sunk_rate": 0.0,
+   "finding_rate": 0.00575,
+   "thrash_rate": 5e-05,
+   "resolve": 0.574257984426137,
+   "resolve_flag": 0.58,
+   "resolve_clean": 0.5742254000680967,
+   "resolve_loop": 0.6851851851851852,
+   "resolve_retry": 0.3333333333333333,
+   "resolve_bloat": 0.48484848484848486,
+   "resolve_nobloat": 0.574424783763921,
+   "resolve_sunk": null,
+   "n_resolved_known": 17722,
+   "top_terminal": "submitted"
+  },
+  {
+   "dataset": "nvidia/Open-SWE-Traces",
+   "config": "v1.0",
+   "split": "openhands",
+   "model": "Open-SWE v1.0 (see card)",
+   "scaffold": "openhands",
+   "runs": 20000,
+   "mean_steps": 58.81655,
+   "median_steps": 54.0,
+   "est_cost": 87695.46607200014,
+   "mech_share": 0.0112091546852957,
+   "sunk_share": 0.0,
+   "loop_rate": 0.0122,
+   "retry_rate": 0.00555,
+   "bloat_rate": 0.34825,
+   "ctx_rate": 0.0,
+   "sunk_rate": 0.0,
+   "finding_rate": 0.36,
+   "thrash_rate": 0.65555,
+   "resolve": 0.4366711512588891,
+   "resolve_flag": 0.44326117318435754,
+   "resolve_clean": 0.43285092601963365,
+   "resolve_loop": 0.34355828220858897,
+   "resolve_retry": 0.4,
+   "resolve_bloat": 0.4460405817920632,
+   "resolve_nobloat": 0.43147410358565735,
+   "resolve_sunk": null,
+   "n_resolved_known": 15609,
+   "top_terminal": "submitted"
+  },
+  {
+   "dataset": "nvidia/SWE-Hero-openhands-trajectories",
+   "config": "default",
+   "split": "train",
+   "model": "Qwen3-Coder-480B",
+   "scaffold": "openhands",
+   "runs": 20000,
+   "mean_steps": 61.84005,
+   "median_steps": 60.0,
+   "est_cost": 77046.6692550003,
+   "mech_share": 0.03566698599404184,
+   "sunk_share": 0.0,
+   "loop_rate": 0.00155,
+   "retry_rate": 0.0044,
+   "bloat_rate": 0.5825,
+   "ctx_rate": 0.0,
+   "sunk_rate": 0.0,
+   "finding_rate": 0.58475,
+   "thrash_rate": 0.775,
+   "resolve": null,
+   "resolve_flag": null,
+   "resolve_clean": null,
+   "resolve_loop": null,
+   "resolve_retry": null,
+   "resolve_bloat": null,
+   "resolve_nobloat": null,
+   "resolve_sunk": null,
+   "n_resolved_known": 0,
+   "top_terminal": "submitted"
+  },
+  {
    "dataset": "nebius/SWE-agent-trajectories",
    "config": "default",
    "split": "train",
@@ -370,9 +370,9 @@
    "runs": 18582,
    "mean_steps": 26.054030782477668,
    "median_steps": 17.0,
-   "est_cost": 10891.804746000007,
-   "mech_share": 0.2297361592629976,
-   "sunk_share": 0.7740589760476777,
+   "est_cost": 10891.827192000006,
+   "mech_share": 0.22923375985539265,
+   "sunk_share": 0.7740594416694815,
    "loop_rate": 0.13722957701000968,
    "retry_rate": 0.21649983855343882,
    "bloat_rate": 0.011893230007534172,
@@ -400,8 +400,8 @@
    "runs": 15914,
    "mean_steps": 34.337627246449664,
    "median_steps": 29.0,
-   "est_cost": 28115.669627999912,
-   "mech_share": 0.08513080919201582,
+   "est_cost": 28115.672276999845,
+   "mech_share": 0.08513080232904453,
    "sunk_share": 0.0,
    "loop_rate": 0.0047756692220686184,
    "retry_rate": 0.005404046751288174,
@@ -430,8 +430,8 @@
    "runs": 14485,
    "mean_steps": 34.26876078702106,
    "median_steps": 29.0,
-   "est_cost": 25977.134591999922,
-   "mech_share": 0.08091776690086226,
+   "est_cost": 25977.10896599992,
+   "mech_share": 0.08091784646383784,
    "sunk_share": 0.0,
    "loop_rate": 0.003935105281325509,
    "retry_rate": 0.008215395236451501,
@@ -460,8 +460,8 @@
    "runs": 14374,
    "mean_steps": 34.553568943926535,
    "median_steps": 30.0,
-   "est_cost": 25516.985873999998,
-   "mech_share": 0.05930633030854667,
+   "est_cost": 25516.95743099999,
+   "mech_share": 0.05930639471647643,
    "sunk_share": 0.0,
    "loop_rate": 0.003826353137609573,
    "retry_rate": 0.007930986503408934,
@@ -490,23 +490,23 @@
    "runs": 5826,
    "mean_steps": 19.182972880192242,
    "median_steps": 15.0,
-   "est_cost": 3683.902602000015,
-   "mech_share": 0.04957166689726753,
-   "sunk_share": 0.5532960254957346,
-   "loop_rate": 0.024030209406110538,
-   "retry_rate": 0.09285959491932716,
-   "bloat_rate": 0.18365945760384483,
+   "est_cost": 3829.6208160000015,
+   "mech_share": 0.04785675908828768,
+   "sunk_share": 0.5506842137448849,
+   "loop_rate": 0.01922416752488843,
+   "retry_rate": 0.09388946103673189,
+   "bloat_rate": 0.18640576725025745,
    "ctx_rate": 0.0,
    "sunk_rate": 0.5320974939924477,
-   "finding_rate": 0.6776519052523172,
+   "finding_rate": 0.6750772399588053,
    "thrash_rate": 0.384140061791967,
    "resolve": 0.07277720562993477,
-   "resolve_flag": 0.0367274569402229,
-   "resolve_clean": 0.1485623003194888,
-   "resolve_loop": 0.02857142857142857,
-   "resolve_retry": 0.06839186691312385,
-   "resolve_bloat": 0.09626168224299066,
-   "resolve_nobloat": 0.06749369217830109,
+   "resolve_flag": 0.036613272311212815,
+   "resolve_clean": 0.14791336502905442,
+   "resolve_loop": 0.017857142857142856,
+   "resolve_retry": 0.06946983546617916,
+   "resolve_bloat": 0.09576427255985268,
+   "resolve_nobloat": 0.06751054852320675,
    "resolve_sunk": 0.008387096774193548,
    "n_resolved_known": 5826,
    "top_terminal": "cutoff"
@@ -520,8 +520,8 @@
    "runs": 5198,
    "mean_steps": 21.20623316660254,
    "median_steps": 15.0,
-   "est_cost": 5098.386423000004,
-   "mech_share": 0.0403032057948714,
+   "est_cost": 5098.3782900000015,
+   "mech_share": 0.04030326996167307,
    "sunk_share": 0.0,
    "loop_rate": 0.0017314351673720662,
    "retry_rate": 0.022701038861100423,
@@ -550,8 +550,8 @@
    "runs": 5098,
    "mean_steps": 20.589446841898784,
    "median_steps": 14.0,
-   "est_cost": 4789.839728999985,
-   "mech_share": 0.04398717551845334,
+   "est_cost": 4789.829834999984,
+   "mech_share": 0.043987264466763994,
    "sunk_share": 0.0,
    "loop_rate": 0.001569242840329541,
    "retry_rate": 0.040211847783444485,
@@ -569,36 +569,6 @@
    "resolve_nobloat": 0.3939888164026095,
    "resolve_sunk": null,
    "n_resolved_known": 5098,
-   "top_terminal": "submitted"
-  },
-  {
-   "dataset": "thoughtworks/agentic-coding-trajectories",
-   "config": "default",
-   "split": "train",
-   "model": "kwai-klear-swe-smith-mini",
-   "scaffold": "mini-swe-agent",
-   "runs": 5000,
-   "mean_steps": 27.6036,
-   "median_steps": 24.0,
-   "est_cost": 3149.9010540000004,
-   "mech_share": 7.630866791492905e-05,
-   "sunk_share": 0.07919458571031038,
-   "loop_rate": 0.0002,
-   "retry_rate": 0.0018,
-   "bloat_rate": 0.0,
-   "ctx_rate": 0.0,
-   "sunk_rate": 0.1056,
-   "finding_rate": 0.1076,
-   "thrash_rate": 0.0,
-   "resolve": null,
-   "resolve_flag": null,
-   "resolve_clean": null,
-   "resolve_loop": null,
-   "resolve_retry": null,
-   "resolve_bloat": null,
-   "resolve_nobloat": null,
-   "resolve_sunk": null,
-   "n_resolved_known": 0,
    "top_terminal": "submitted"
   },
   {
@@ -635,14 +605,44 @@
    "dataset": "thoughtworks/agentic-coding-trajectories",
    "config": "default",
    "split": "train",
+   "model": "kwai-klear-swe-smith-mini",
+   "scaffold": "mini-swe-agent",
+   "runs": 5000,
+   "mean_steps": 27.6036,
+   "median_steps": 24.0,
+   "est_cost": 3149.9010540000004,
+   "mech_share": 7.630866791492905e-05,
+   "sunk_share": 0.0,
+   "loop_rate": 0.0002,
+   "retry_rate": 0.0018,
+   "bloat_rate": 0.0,
+   "ctx_rate": 0.0,
+   "sunk_rate": 0.0,
+   "finding_rate": 0.002,
+   "thrash_rate": 0.0,
+   "resolve": null,
+   "resolve_flag": null,
+   "resolve_clean": null,
+   "resolve_loop": null,
+   "resolve_retry": null,
+   "resolve_bloat": null,
+   "resolve_nobloat": null,
+   "resolve_sunk": null,
+   "n_resolved_known": 0,
+   "top_terminal": "submitted"
+  },
+  {
+   "dataset": "thoughtworks/agentic-coding-trajectories",
+   "config": "default",
+   "split": "train",
    "model": "nebius-swe-rebench-openhands",
    "scaffold": "openhands",
    "runs": 5000,
    "mean_steps": 64.1586,
    "median_steps": 61.0,
-   "est_cost": 25035.564231000124,
-   "mech_share": 0.051399854402562804,
-   "sunk_share": 0.16869702348351187,
+   "est_cost": 25035.56947800012,
+   "mech_share": 0.051399853356250046,
+   "sunk_share": 0.16869699459847762,
    "loop_rate": 0.0128,
    "retry_rate": 0.0094,
    "bloat_rate": 0.7204,
@@ -670,8 +670,8 @@
    "runs": 4033,
    "mean_steps": 23.37118770146293,
    "median_steps": 17.0,
-   "est_cost": 4483.917084000009,
-   "mech_share": 0.032010527174377267,
+   "est_cost": 4483.917984000008,
+   "mech_share": 0.032010522252987644,
    "sunk_share": 0.0,
    "loop_rate": 0.002727498140342177,
    "retry_rate": 0.006694768162658071,
@@ -730,8 +730,8 @@
    "runs": 528,
    "mean_steps": 31.831439393939394,
    "median_steps": 19.0,
-   "est_cost": 623.9744249999998,
-   "mech_share": 0.023732433645756144,
+   "est_cost": 623.9724299999995,
+   "mech_share": 0.023732455321051674,
    "sunk_share": 0.0,
    "loop_rate": 0.011363636363636364,
    "retry_rate": 0.017045454545454544,
@@ -790,8 +790,8 @@
    "runs": 317,
    "mean_steps": 31.353312302839118,
    "median_steps": 19.0,
-   "est_cost": 363.5410380000002,
-   "mech_share": 0.0356621929652656,
+   "est_cost": 363.5408100000002,
+   "mech_share": 0.035662215331337774,
    "sunk_share": 0.0,
    "loop_rate": 0.012618296529968454,
    "retry_rate": 0.022082018927444796,
@@ -820,9 +820,9 @@
    "runs": 229,
    "mean_steps": 28.061135371179038,
    "median_steps": 24.0,
-   "est_cost": 437.128215,
-   "mech_share": 0.07755605427152268,
-   "sunk_share": 0.48454901040876525,
+   "est_cost": 437.0728199999999,
+   "mech_share": 0.07756556301427862,
+   "sunk_share": 0.4846104225835869,
    "loop_rate": 0.013100436681222707,
    "retry_rate": 0.03056768558951965,
    "bloat_rate": 0.6943231441048034,
@@ -850,8 +850,8 @@
    "runs": 53,
    "mean_steps": 34.45283018867924,
    "median_steps": 17.0,
-   "est_cost": 64.70331300000001,
-   "mech_share": 0.0010427595879054909,
+   "est_cost": 64.70334900000002,
+   "mech_share": 0.0010427590077292596,
    "sunk_share": 0.0,
    "loop_rate": 0.018867924528301886,
    "retry_rate": 0.018867924528301886,
@@ -889,9 +889,9 @@
    "model": "gpt-4o-2024-08-06",
    "step_bucket": 2,
    "n": 1165,
-   "finding_rate": 0.7587982832618025,
-   "resolve_flag": 0.004524886877828055,
-   "resolve_clean": 0.17437722419928825,
+   "finding_rate": 0.7579399141630901,
+   "resolve_flag": 0.004530011325028313,
+   "resolve_clean": 0.17375886524822695,
    "resolve_bloat": 0.4,
    "resolve_nobloat": 0.04242424242424243
   },
@@ -900,143 +900,143 @@
    "model": "gpt-4o-2024-08-06",
    "step_bucket": 3,
    "n": 1165,
-   "finding_rate": 0.27467811158798283,
-   "resolve_flag": 0.1875,
-   "resolve_clean": 0.1834319526627219,
-   "resolve_bloat": 0.2170212765957447,
-   "resolve_nobloat": 0.17634408602150536
+   "finding_rate": 0.26952789699570817,
+   "resolve_flag": 0.1910828025477707,
+   "resolve_clean": 0.18213866039952997,
+   "resolve_bloat": 0.2175732217573222,
+   "resolve_nobloat": 0.17602591792656588
   },
   {
    "dataset": "SWE-Gym/OpenHands-Sampled-Trajectories",
    "model": "gpt-4o-2024-08-06",
    "step_bucket": 4,
    "n": 1165,
-   "finding_rate": 0.6008583690987125,
-   "resolve_flag": 0.07428571428571429,
-   "resolve_clean": 0.12473118279569892,
-   "resolve_bloat": 0.09444444444444444,
-   "resolve_nobloat": 0.09440993788819876
+   "finding_rate": 0.6,
+   "resolve_flag": 0.07439198855507868,
+   "resolve_clean": 0.12446351931330472,
+   "resolve_bloat": 0.09264305177111716,
+   "resolve_nobloat": 0.09523809523809523
   },
   {
    "dataset": "SWE-Gym/OpenHands-Sampled-Trajectories",
    "model": "gpt-4o-2024-08-06",
    "step_bucket": 5,
    "n": 1165,
-   "finding_rate": 0.8060085836909872,
-   "resolve_flag": 0.0308839190628328,
-   "resolve_clean": 0.0752212389380531,
-   "resolve_bloat": 0.030107526881720432,
-   "resolve_nobloat": 0.045714285714285714
+   "finding_rate": 0.8,
+   "resolve_flag": 0.030042918454935622,
+   "resolve_clean": 0.07725321888412018,
+   "resolve_bloat": 0.029787234042553193,
+   "resolve_nobloat": 0.0460431654676259
   },
   {
    "dataset": "SWE-bench/SWE-smith-trajectories",
    "model": "claude-3-5-sonnet-20241022",
    "step_bucket": 1,
    "n": 2866,
-   "finding_rate": 0.17376133984647593,
-   "resolve_flag": 0.6044176706827309,
-   "resolve_clean": 0.4353885135135135,
-   "resolve_bloat": 0.7317073170731707,
-   "resolve_nobloat": 0.43505234587049246
+   "finding_rate": 0.17480809490579205,
+   "resolve_flag": 0.6347305389221557,
+   "resolve_clean": 0.43678646934460885,
+   "resolve_bloat": 0.7431192660550459,
+   "resolve_nobloat": 0.4363922804253643
   },
   {
    "dataset": "SWE-bench/SWE-smith-trajectories",
    "model": "claude-3-5-sonnet-20241022",
    "step_bucket": 2,
    "n": 2866,
-   "finding_rate": 0.15666434054431264,
-   "resolve_flag": 0.6080178173719376,
-   "resolve_clean": 0.44187008688456764,
-   "resolve_bloat": 0.6476683937823834,
-   "resolve_nobloat": 0.4399193548387097
+   "finding_rate": 0.15875785066294487,
+   "resolve_flag": 0.5736263736263736,
+   "resolve_clean": 0.4496059726254666,
+   "resolve_bloat": 0.6235955056179775,
+   "resolve_nobloat": 0.4474103585657371
   },
   {
    "dataset": "SWE-bench/SWE-smith-trajectories",
    "model": "claude-3-5-sonnet-20241022",
    "step_bucket": 3,
    "n": 2866,
-   "finding_rate": 0.1322400558269365,
-   "resolve_flag": 0.41424802110817943,
-   "resolve_clean": 0.4209891435464415,
-   "resolve_bloat": 0.41530054644808745,
-   "resolve_nobloat": 0.4208
+   "finding_rate": 0.1297976273551989,
+   "resolve_flag": 0.40591397849462363,
+   "resolve_clean": 0.40938251804330394,
+   "resolve_bloat": 0.40782122905027934,
+   "resolve_nobloat": 0.4090909090909091
   },
   {
    "dataset": "SWE-bench/SWE-smith-trajectories",
    "model": "claude-3-5-sonnet-20241022",
    "step_bucket": 4,
    "n": 2866,
-   "finding_rate": 0.15387299371946964,
-   "resolve_flag": 0.3877551020408163,
-   "resolve_clean": 0.3958762886597938,
+   "finding_rate": 0.15352407536636428,
+   "resolve_flag": 0.3886363636363636,
+   "resolve_clean": 0.4010717230008244,
    "resolve_bloat": 0.3931034482758621,
-   "resolve_nobloat": 0.3948992184286302
+   "resolve_nobloat": 0.4002468120115179
   },
   {
    "dataset": "SWE-bench/SWE-smith-trajectories",
    "model": "claude-3-5-sonnet-20241022",
    "step_bucket": 5,
    "n": 2865,
-   "finding_rate": 0.21396160558464222,
-   "resolve_flag": 0.3915171288743883,
-   "resolve_clean": 0.31616341030195383,
-   "resolve_bloat": 0.3961267605633803,
-   "resolve_nobloat": 0.31649978232477144
+   "finding_rate": 0.2136125654450262,
+   "resolve_flag": 0.3937908496732026,
+   "resolve_clean": 0.31380381713271194,
+   "resolve_bloat": 0.3992932862190813,
+   "resolve_nobloat": 0.3140495867768595
   },
   {
    "dataset": "SWE-bench/SWE-smith-trajectories",
    "model": "claude-3-7-sonnet-20250219",
    "step_bucket": 1,
    "n": 8955,
-   "finding_rate": 0.10820770519262982,
-   "resolve_flag": 0.49742002063983487,
-   "resolve_clean": 0.649511645379414,
-   "resolve_bloat": 0.49533678756476685,
-   "resolve_nobloat": 0.6496871088861076
+   "finding_rate": 0.10809603573422669,
+   "resolve_flag": 0.493801652892562,
+   "resolve_clean": 0.6518091899336421,
+   "resolve_bloat": 0.491701244813278,
+   "resolve_nobloat": 0.6519834814165937
   },
   {
    "dataset": "SWE-bench/SWE-smith-trajectories",
    "model": "claude-3-7-sonnet-20250219",
    "step_bucket": 2,
    "n": 8955,
-   "finding_rate": 0.13847012841987716,
-   "resolve_flag": 0.4830645161290323,
-   "resolve_clean": 0.5268956578094621,
-   "resolve_bloat": 0.4796747967479675,
-   "resolve_nobloat": 0.527378640776699
+   "finding_rate": 0.13746510329424902,
+   "resolve_flag": 0.4849715678310317,
+   "resolve_clean": 0.5229155877783532,
+   "resolve_bloat": 0.4828150572831424,
+   "resolve_nobloat": 0.5232122074227338
   },
   {
    "dataset": "SWE-bench/SWE-smith-trajectories",
    "model": "claude-3-7-sonnet-20250219",
    "step_bucket": 3,
    "n": 8955,
-   "finding_rate": 0.18280290340591848,
-   "resolve_flag": 0.40256566890653633,
-   "resolve_clean": 0.4315386717682427,
-   "resolve_bloat": 0.4085554866707998,
-   "resolve_nobloat": 0.43012803050939796
+   "finding_rate": 0.1849246231155779,
+   "resolve_flag": 0.3973429951690821,
+   "resolve_clean": 0.4333470338402521,
+   "resolve_bloat": 0.40220723482526055,
+   "resolve_nobloat": 0.4321409066084107
   },
   {
    "dataset": "SWE-bench/SWE-smith-trajectories",
    "model": "claude-3-7-sonnet-20250219",
    "step_bucket": 4,
    "n": 8954,
-   "finding_rate": 0.27998659816841637,
-   "resolve_flag": 0.29437574790586357,
-   "resolve_clean": 0.33379866604622305,
-   "resolve_bloat": 0.2967479674796748,
-   "resolve_nobloat": 0.33261472128118263
+   "finding_rate": 0.2788697788697789,
+   "resolve_flag": 0.2975570684821786,
+   "resolve_clean": 0.3335914511382995,
+   "resolve_bloat": 0.3001224989791752,
+   "resolve_nobloat": 0.3323597232897771
   },
   {
    "dataset": "SWE-bench/SWE-smith-trajectories",
    "model": "claude-3-7-sonnet-20250219",
    "step_bucket": 5,
    "n": 8954,
-   "finding_rate": 0.3704489613580523,
-   "resolve_flag": 0.20922520349713597,
-   "resolve_clean": 0.21483058364378216,
-   "resolve_bloat": 0.21525533290239174,
-   "resolve_nobloat": 0.2114334470989761
+   "finding_rate": 0.370560643287916,
+   "resolve_flag": 0.20976491862567812,
+   "resolve_clean": 0.21486870120652946,
+   "resolve_bloat": 0.2157622739018088,
+   "resolve_nobloat": 0.21150563332195288
   },
   {
    "dataset": "SWE-bench/SWE-smith-trajectories",
@@ -1100,9 +1100,9 @@
    "n": 65,
    "finding_rate": 0.015384615384615385,
    "resolve_flag": 0.0,
-   "resolve_clean": 0.515625,
+   "resolve_clean": 0.609375,
    "resolve_bloat": null,
-   "resolve_nobloat": 0.5076923076923077
+   "resolve_nobloat": 0.6
   },
   {
    "dataset": "nebius/SWE-agent-trajectories",
@@ -1111,9 +1111,9 @@
    "n": 65,
    "finding_rate": 0.03076923076923077,
    "resolve_flag": 0.5,
-   "resolve_clean": 0.6190476190476191,
+   "resolve_clean": 0.5238095238095238,
    "resolve_bloat": null,
-   "resolve_nobloat": 0.6153846153846154
+   "resolve_nobloat": 0.5230769230769231
   },
   {
    "dataset": "nebius/SWE-agent-trajectories",
@@ -1121,10 +1121,10 @@
    "step_bucket": 3,
    "n": 65,
    "finding_rate": 0.36923076923076925,
-   "resolve_flag": 0.25,
+   "resolve_flag": 0.20833333333333334,
    "resolve_clean": 0.5365853658536586,
    "resolve_bloat": 0.0,
-   "resolve_nobloat": 0.4375
+   "resolve_nobloat": 0.421875
   },
   {
    "dataset": "nebius/SWE-agent-trajectories",
@@ -1132,10 +1132,10 @@
    "step_bucket": 4,
    "n": 65,
    "finding_rate": 1.0,
-   "resolve_flag": 0.07692307692307693,
+   "resolve_flag": 0.09230769230769231,
    "resolve_clean": null,
    "resolve_bloat": null,
-   "resolve_nobloat": 0.07692307692307693
+   "resolve_nobloat": 0.09230769230769231
   },
   {
    "dataset": "nebius/SWE-agent-trajectories",
@@ -1164,33 +1164,33 @@
    "model": "swe-agent-llama-70b",
    "step_bucket": 2,
    "n": 3717,
-   "finding_rate": 0.1374764595103578,
-   "resolve_flag": 0.11937377690802348,
-   "resolve_clean": 0.28602620087336245,
-   "resolve_bloat": 0.07317073170731707,
-   "resolve_nobloat": 0.265233949945593
+   "finding_rate": 0.14016680118375033,
+   "resolve_flag": 0.11516314779270634,
+   "resolve_clean": 0.28473091364205255,
+   "resolve_bloat": 0.06818181818181818,
+   "resolve_nobloat": 0.2632725292676286
   },
   {
    "dataset": "nebius/SWE-agent-trajectories",
    "model": "swe-agent-llama-70b",
    "step_bucket": 3,
    "n": 3716,
-   "finding_rate": 0.30489773950484395,
-   "resolve_flag": 0.11297440423654016,
-   "resolve_clean": 0.23383662408052652,
+   "finding_rate": 0.3011302475780409,
+   "resolve_flag": 0.11706881143878463,
+   "resolve_clean": 0.23604158644589912,
    "resolve_bloat": 0.06666666666666667,
-   "resolve_nobloat": 0.19967042021422687
+   "resolve_nobloat": 0.20296621807195825
   },
   {
    "dataset": "nebius/SWE-agent-trajectories",
    "model": "swe-agent-llama-70b",
    "step_bucket": 4,
    "n": 3716,
-   "finding_rate": 0.6730355220667384,
-   "resolve_flag": 0.04798080767692923,
-   "resolve_clean": 0.1448559670781893,
+   "finding_rate": 0.6741119483315393,
+   "resolve_flag": 0.047105788423153695,
+   "resolve_clean": 0.14616019818331957,
    "resolve_bloat": 0.0,
-   "resolve_nobloat": 0.08107367844426185
+   "resolve_nobloat": 0.08075554338899535
   },
   {
    "dataset": "nebius/SWE-agent-trajectories",
@@ -1199,9 +1199,9 @@
    "n": 3716,
    "finding_rate": 0.9469860064585576,
    "resolve_flag": 0.02870133560670645,
-   "resolve_clean": 0.1319796954314721,
+   "resolve_clean": 0.116751269035533,
    "resolve_bloat": 0.0,
-   "resolve_nobloat": 0.03434288804759329
+   "resolve_nobloat": 0.03352257366855907
   },
   {
    "dataset": "nebius/SWE-agent-trajectories",
@@ -1263,22 +1263,22 @@
    "model": "Qwen3-Coder-480B",
    "step_bucket": 1,
    "n": 4000,
-   "finding_rate": 0.72225,
-   "resolve_flag": 0.6580131533402561,
-   "resolve_clean": 0.6444644464446445,
-   "resolve_bloat": 0.6624693948933194,
-   "resolve_nobloat": 0.6336546888694128
+   "finding_rate": 0.72125,
+   "resolve_flag": 0.6575389948006932,
+   "resolve_clean": 0.6439461883408072,
+   "resolve_bloat": 0.662228451296426,
+   "resolve_nobloat": 0.6326352530541012
   },
   {
    "dataset": "nebius/SWE-rebench-openhands-trajectories",
    "model": "Qwen3-Coder-480B",
    "step_bucket": 2,
    "n": 4000,
-   "finding_rate": 0.746,
-   "resolve_flag": 0.5814343163538874,
-   "resolve_clean": 0.5423228346456693,
-   "resolve_bloat": 0.5830805527468824,
-   "resolve_nobloat": 0.5382381413359149
+   "finding_rate": 0.747,
+   "resolve_flag": 0.5816599732262383,
+   "resolve_clean": 0.5424901185770751,
+   "resolve_bloat": 0.5831090174966352,
+   "resolve_nobloat": 0.5389105058365758
   },
   {
    "dataset": "nebius/SWE-rebench-openhands-trajectories",
@@ -1287,139 +1287,249 @@
    "n": 4000,
    "finding_rate": 0.74625,
    "resolve_flag": 0.4934673366834171,
-   "resolve_clean": 0.46798029556650245,
+   "resolve_clean": 0.4669950738916256,
    "resolve_bloat": 0.49578982822499157,
-   "resolve_nobloat": 0.46168768186226966
+   "resolve_nobloat": 0.46071774975751695
   },
   {
    "dataset": "nebius/SWE-rebench-openhands-trajectories",
    "model": "Qwen3-Coder-480B",
    "step_bucket": 4,
    "n": 4000,
-   "finding_rate": 0.75,
-   "resolve_flag": 0.413,
-   "resolve_clean": 0.388,
-   "resolve_bloat": 0.41327046143482654,
-   "resolve_nobloat": 0.3879728419010669
+   "finding_rate": 0.74975,
+   "resolve_flag": 0.41380460153384463,
+   "resolve_clean": 0.38961038961038963,
+   "resolve_bloat": 0.4140835579514825,
+   "resolve_nobloat": 0.38953488372093026
   },
   {
    "dataset": "nebius/SWE-rebench-openhands-trajectories",
    "model": "Qwen3-Coder-480B",
    "step_bucket": 5,
    "n": 4000,
-   "finding_rate": 0.861,
-   "resolve_flag": 0.26713124274099886,
-   "resolve_clean": 0.32194244604316546,
-   "resolve_bloat": 0.3027829313543599,
-   "resolve_nobloat": 0.2168582375478927
+   "finding_rate": 0.86125,
+   "resolve_flag": 0.26676342525399127,
+   "resolve_clean": 0.3207207207207207,
+   "resolve_bloat": 0.30229970326409494,
+   "resolve_nobloat": 0.21625766871165644
   },
   {
    "dataset": "nvidia/Open-SWE-Traces",
    "model": "Open-SWE v1.0 (see card)",
    "step_bucket": 1,
    "n": 6232,
-   "finding_rate": 0.3839858793324775,
-   "resolve_flag": 0.5816966151274551,
-   "resolve_clean": 0.602500651211253,
-   "resolve_bloat": 0.5815722738799662,
-   "resolve_nobloat": 0.6024314536989136
+   "finding_rate": 0.38446726572528883,
+   "resolve_flag": 0.5818030050083473,
+   "resolve_clean": 0.6019290928050052,
+   "resolve_bloat": 0.581680033769523,
+   "resolve_nobloat": 0.6018638363965829
   },
   {
    "dataset": "nvidia/Open-SWE-Traces",
    "model": "Open-SWE v1.0 (see card)",
    "step_bucket": 2,
    "n": 6232,
-   "finding_rate": 0.40596919127086006,
-   "resolve_flag": 0.5063241106719367,
-   "resolve_clean": 0.5089141004862237,
-   "resolve_bloat": 0.5060435132957293,
-   "resolve_nobloat": 0.5090666666666667
+   "finding_rate": 0.40853658536585363,
+   "resolve_flag": 0.5066771406127258,
+   "resolve_clean": 0.5100379815518177,
+   "resolve_bloat": 0.5068054443554844,
+   "resolve_nobloat": 0.5099089448312801
   },
   {
    "dataset": "nvidia/Open-SWE-Traces",
    "model": "Open-SWE v1.0 (see card)",
    "step_bucket": 3,
    "n": 6231,
-   "finding_rate": 0.4519338789921361,
-   "resolve_flag": 0.46235795454545453,
-   "resolve_clean": 0.456515373352855,
-   "resolve_bloat": 0.462436177972283,
-   "resolve_nobloat": 0.45657781599312125
+   "finding_rate": 0.4480821697961804,
+   "resolve_flag": 0.458810888252149,
+   "resolve_clean": 0.45623727827856936,
+   "resolve_bloat": 0.45845588235294116,
+   "resolve_nobloat": 0.45656508117345485
   },
   {
    "dataset": "nvidia/Open-SWE-Traces",
    "model": "Open-SWE v1.0 (see card)",
    "step_bucket": 4,
    "n": 6231,
-   "finding_rate": 0.4846734071577596,
-   "resolve_flag": 0.39437086092715234,
-   "resolve_clean": 0.39831828090937405,
-   "resolve_bloat": 0.39192886456908343,
-   "resolve_nobloat": 0.4003628666465074
+   "finding_rate": 0.48563633445674853,
+   "resolve_flag": 0.39689358889623266,
+   "resolve_clean": 0.3984399375975039,
+   "resolve_bloat": 0.3944672131147541,
+   "resolve_nobloat": 0.40054495912806537
   },
   {
    "dataset": "nvidia/Open-SWE-Traces",
    "model": "Open-SWE v1.0 (see card)",
    "step_bucket": 5,
    "n": 6231,
-   "finding_rate": 0.5369924570694913,
-   "resolve_flag": 0.3341303048416019,
-   "resolve_clean": 0.33136915077989604,
-   "resolve_bloat": 0.333961671379202,
-   "resolve_nobloat": 0.3316929133858268
+   "finding_rate": 0.5368319691863265,
+   "resolve_flag": 0.33423019431988044,
+   "resolve_clean": 0.33125433125433124,
+   "resolve_bloat": 0.33406662476429916,
+   "resolve_nobloat": 0.33158412594293213
+  },
+  {
+   "dataset": "nvidia/Open-SWE-Traces",
+   "model": "Open-SWE v1.1 (see card)",
+   "step_bucket": 1,
+   "n": 7095,
+   "finding_rate": 0.025229034531360113,
+   "resolve_flag": 0.7374301675977654,
+   "resolve_clean": 0.38938692886061305,
+   "resolve_bloat": 0.7619047619047619,
+   "resolve_nobloat": 0.3893460372455608
+  },
+  {
+   "dataset": "nvidia/Open-SWE-Traces",
+   "model": "Open-SWE v1.1 (see card)",
+   "step_bucket": 2,
+   "n": 7095,
+   "finding_rate": 0.18111346018322763,
+   "resolve_flag": 0.6459143968871596,
+   "resolve_clean": 0.3493975903614458,
+   "resolve_bloat": 0.6501200960768615,
+   "resolve_nobloat": 0.35032500855285664
+  },
+  {
+   "dataset": "nvidia/Open-SWE-Traces",
+   "model": "Open-SWE v1.1 (see card)",
+   "step_bucket": 3,
+   "n": 7094,
+   "finding_rate": 0.3538201296870595,
+   "resolve_flag": 0.5434262948207171,
+   "resolve_clean": 0.42670157068062825,
+   "resolve_bloat": 0.545641447368421,
+   "resolve_nobloat": 0.4274989274989275
+  },
+  {
+   "dataset": "nvidia/Open-SWE-Traces",
+   "model": "Open-SWE v1.1 (see card)",
+   "step_bucket": 4,
+   "n": 7094,
+   "finding_rate": 0.417817874259938,
+   "resolve_flag": 0.49122807017543857,
+   "resolve_clean": 0.41041162227602906,
+   "resolve_bloat": 0.4933844011142061,
+   "resolve_nobloat": 0.4107058266224538
+  },
+  {
+   "dataset": "nvidia/Open-SWE-Traces",
+   "model": "Open-SWE v1.1 (see card)",
+   "step_bucket": 5,
+   "n": 7094,
+   "finding_rate": 0.4436143219622216,
+   "resolve_flag": 0.3876707975850016,
+   "resolve_clean": 0.3430453508994173,
+   "resolve_bloat": 0.3911745189117452,
+   "resolve_nobloat": 0.34191176470588236
+  },
+  {
+   "dataset": "nvidia/Open-SWE-Traces",
+   "model": "Open-SWE v1.2 (see card)",
+   "step_bucket": 1,
+   "n": 3545,
+   "finding_rate": 0.00028208744710860365,
+   "resolve_flag": 1.0,
+   "resolve_clean": 0.731941309255079,
+   "resolve_bloat": null,
+   "resolve_nobloat": 0.7320169252468265
+  },
+  {
+   "dataset": "nvidia/Open-SWE-Traces",
+   "model": "Open-SWE v1.2 (see card)",
+   "step_bucket": 2,
+   "n": 3545,
+   "finding_rate": 0.001692524682651622,
+   "resolve_flag": 0.8333333333333334,
+   "resolve_clean": 0.6414241311104832,
+   "resolve_bloat": 1.0,
+   "resolve_nobloat": 0.6415467118261361
+  },
+  {
+   "dataset": "nvidia/Open-SWE-Traces",
+   "model": "Open-SWE v1.2 (see card)",
+   "step_bucket": 3,
+   "n": 3544,
+   "finding_rate": 0.004232505643340858,
+   "resolve_flag": 0.8666666666666667,
+   "resolve_clean": 0.5837347690563899,
+   "resolve_bloat": 0.75,
+   "resolve_nobloat": 0.5847457627118644
+  },
+  {
+   "dataset": "nvidia/Open-SWE-Traces",
+   "model": "Open-SWE v1.2 (see card)",
+   "step_bucket": 4,
+   "n": 3544,
+   "finding_rate": 0.00536117381489842,
+   "resolve_flag": 0.5789473684210527,
+   "resolve_clean": 0.5075177304964539,
+   "resolve_bloat": 0.4444444444444444,
+   "resolve_nobloat": 0.5080622347949081
+  },
+  {
+   "dataset": "nvidia/Open-SWE-Traces",
+   "model": "Open-SWE v1.2 (see card)",
+   "step_bucket": 5,
+   "n": 3544,
+   "finding_rate": 0.01664785553047404,
+   "resolve_flag": 0.4745762711864407,
+   "resolve_clean": 0.40344332855093257,
+   "resolve_bloat": 0.3888888888888889,
+   "resolve_nobloat": 0.4047078842881452
   },
   {
    "dataset": "ricdomolm/mini-coder-trajs-400k",
    "model": "qwen3-coder-30b",
    "step_bucket": 1,
    "n": 4000,
-   "finding_rate": 0.04075,
-   "resolve_flag": 0.31901840490797545,
-   "resolve_clean": 0.3017982799061767,
+   "finding_rate": 0.00475,
+   "resolve_flag": 0.10526315789473684,
+   "resolve_clean": 0.30746043707611154,
    "resolve_bloat": null,
-   "resolve_nobloat": 0.3025
+   "resolve_nobloat": 0.3065
   },
   {
    "dataset": "ricdomolm/mini-coder-trajs-400k",
    "model": "qwen3-coder-30b",
    "step_bucket": 2,
    "n": 4000,
-   "finding_rate": 0.043,
-   "resolve_flag": 0.32558139534883723,
-   "resolve_clean": 0.24843260188087773,
+   "finding_rate": 0.01125,
+   "resolve_flag": 0.2222222222222222,
+   "resolve_clean": 0.24804045512010114,
    "resolve_bloat": null,
-   "resolve_nobloat": 0.25175
+   "resolve_nobloat": 0.24775
   },
   {
    "dataset": "ricdomolm/mini-coder-trajs-400k",
    "model": "qwen3-coder-30b",
    "step_bucket": 3,
    "n": 4000,
-   "finding_rate": 0.0385,
-   "resolve_flag": 0.22077922077922077,
-   "resolve_clean": 0.18434737389495578,
+   "finding_rate": 0.016,
+   "resolve_flag": 0.125,
+   "resolve_clean": 0.18445121951219512,
    "resolve_bloat": null,
-   "resolve_nobloat": 0.18575
+   "resolve_nobloat": 0.1835
   },
   {
    "dataset": "ricdomolm/mini-coder-trajs-400k",
    "model": "qwen3-coder-30b",
    "step_bucket": 4,
    "n": 4000,
-   "finding_rate": 0.04275,
-   "resolve_flag": 0.16374269005847952,
-   "resolve_clean": 0.13293288064768868,
+   "finding_rate": 0.02725,
+   "resolve_flag": 0.1651376146788991,
+   "resolve_clean": 0.13569776407093292,
    "resolve_bloat": null,
-   "resolve_nobloat": 0.13425
+   "resolve_nobloat": 0.1365
   },
   {
    "dataset": "ricdomolm/mini-coder-trajs-400k",
    "model": "qwen3-coder-30b",
    "step_bucket": 5,
    "n": 4000,
-   "finding_rate": 0.03975,
-   "resolve_flag": 0.10062893081761007,
-   "resolve_clean": 0.09190315022129654,
+   "finding_rate": 0.03,
+   "resolve_flag": 0.1,
+   "resolve_clean": 0.09201030927835052,
    "resolve_bloat": null,
    "resolve_nobloat": 0.09225
   },
@@ -1428,44 +1538,44 @@
    "model": "nebius-swe-rebench-openhands",
    "step_bucket": 1,
    "n": 1000,
-   "finding_rate": 0.727,
-   "resolve_flag": 0.6850068775790922,
-   "resolve_clean": 0.6813186813186813,
-   "resolve_bloat": 0.6951048951048951,
-   "resolve_nobloat": 0.656140350877193
+   "finding_rate": 0.726,
+   "resolve_flag": 0.6859504132231405,
+   "resolve_clean": 0.6824817518248175,
+   "resolve_bloat": 0.696078431372549,
+   "resolve_nobloat": 0.6573426573426573
   },
   {
    "dataset": "thoughtworks/agentic-coding-trajectories",
    "model": "nebius-swe-rebench-openhands",
    "step_bucket": 2,
    "n": 1000,
-   "finding_rate": 0.742,
-   "resolve_flag": 0.5822102425876011,
-   "resolve_clean": 0.5658914728682171,
-   "resolve_bloat": 0.5842391304347826,
-   "resolve_nobloat": 0.5606060606060606
+   "finding_rate": 0.743,
+   "resolve_flag": 0.5814266487213997,
+   "resolve_clean": 0.5642023346303502,
+   "resolve_bloat": 0.5834464043419267,
+   "resolve_nobloat": 0.55893536121673
   },
   {
    "dataset": "thoughtworks/agentic-coding-trajectories",
    "model": "nebius-swe-rebench-openhands",
    "step_bucket": 3,
    "n": 1000,
-   "finding_rate": 0.752,
-   "resolve_flag": 0.49069148936170215,
-   "resolve_clean": 0.4274193548387097,
-   "resolve_bloat": 0.4932975871313673,
-   "resolve_nobloat": 0.421259842519685
+   "finding_rate": 0.751,
+   "resolve_flag": 0.49267643142476697,
+   "resolve_clean": 0.42570281124497994,
+   "resolve_bloat": 0.4959785522788204,
+   "resolve_nobloat": 0.41732283464566927
   },
   {
    "dataset": "thoughtworks/agentic-coding-trajectories",
    "model": "nebius-swe-rebench-openhands",
    "step_bucket": 4,
    "n": 1000,
-   "finding_rate": 0.744,
-   "resolve_flag": 0.4381720430107527,
-   "resolve_clean": 0.41015625,
-   "resolve_bloat": 0.43945578231292515,
-   "resolve_nobloat": 0.4075471698113208
+   "finding_rate": 0.745,
+   "resolve_flag": 0.436241610738255,
+   "resolve_clean": 0.4117647058823529,
+   "resolve_bloat": 0.43673469387755104,
+   "resolve_nobloat": 0.41132075471698115
   },
   {
    "dataset": "thoughtworks/agentic-coding-trajectories",
@@ -1483,55 +1593,55 @@
    "model": "swe-smith-claude-3-7-sonnet",
    "step_bucket": 1,
    "n": 1000,
-   "finding_rate": 0.092,
-   "resolve_flag": 0.5978260869565217,
-   "resolve_clean": 0.6354625550660793,
-   "resolve_bloat": 0.5888888888888889,
-   "resolve_nobloat": 0.6362637362637362
+   "finding_rate": 0.082,
+   "resolve_flag": 0.573170731707317,
+   "resolve_clean": 0.6339869281045751,
+   "resolve_bloat": 0.5625,
+   "resolve_nobloat": 0.6347826086956522
   },
   {
    "dataset": "thoughtworks/agentic-coding-trajectories",
    "model": "swe-smith-claude-3-7-sonnet",
    "step_bucket": 2,
    "n": 1000,
-   "finding_rate": 0.118,
-   "resolve_flag": 0.5084745762711864,
-   "resolve_clean": 0.5328798185941043,
-   "resolve_bloat": 0.5086206896551724,
-   "resolve_nobloat": 0.5328054298642534
+   "finding_rate": 0.112,
+   "resolve_flag": 0.5446428571428571,
+   "resolve_clean": 0.5416666666666666,
+   "resolve_bloat": 0.5454545454545454,
+   "resolve_nobloat": 0.5415730337078651
   },
   {
    "dataset": "thoughtworks/agentic-coding-trajectories",
    "model": "swe-smith-claude-3-7-sonnet",
    "step_bucket": 3,
    "n": 1000,
-   "finding_rate": 0.158,
-   "resolve_flag": 0.5189873417721519,
-   "resolve_clean": 0.4584323040380047,
-   "resolve_bloat": 0.5290322580645161,
-   "resolve_nobloat": 0.45680473372781066
+   "finding_rate": 0.178,
+   "resolve_flag": 0.5224719101123596,
+   "resolve_clean": 0.4537712895377129,
+   "resolve_bloat": 0.5314285714285715,
+   "resolve_nobloat": 0.45212121212121215
   },
   {
    "dataset": "thoughtworks/agentic-coding-trajectories",
    "model": "swe-smith-claude-3-7-sonnet",
    "step_bucket": 4,
    "n": 1000,
-   "finding_rate": 0.235,
-   "resolve_flag": 0.3659574468085106,
-   "resolve_clean": 0.3464052287581699,
-   "resolve_bloat": 0.37280701754385964,
-   "resolve_nobloat": 0.344559585492228
+   "finding_rate": 0.233,
+   "resolve_flag": 0.351931330472103,
+   "resolve_clean": 0.34159061277705344,
+   "resolve_bloat": 0.3584070796460177,
+   "resolve_nobloat": 0.3397932816537468
   },
   {
    "dataset": "thoughtworks/agentic-coding-trajectories",
    "model": "swe-smith-claude-3-7-sonnet",
    "step_bucket": 5,
    "n": 1000,
-   "finding_rate": 0.337,
-   "resolve_flag": 0.22255192878338279,
-   "resolve_clean": 0.20512820512820512,
-   "resolve_bloat": 0.23026315789473684,
-   "resolve_nobloat": 0.2025862068965517
+   "finding_rate": 0.335,
+   "resolve_flag": 0.22388059701492538,
+   "resolve_clean": 0.20451127819548873,
+   "resolve_bloat": 0.23178807947019867,
+   "resolve_nobloat": 0.2020057306590258
   }
  ],
  "marginal": [
@@ -1544,8 +1654,8 @@
    "n": 4000,
    "steps_lo": 1,
    "steps_hi": 15,
-   "cost_share": 0.1806276398864899,
-   "cost_share_cached": 0.18288237078837727,
+   "cost_share": 0.19130376383087896,
+   "cost_share_cached": 0.1924923210727327,
    "resolve": null,
    "resolved_per_dollar": null
   },
@@ -1558,8 +1668,8 @@
    "n": 4000,
    "steps_lo": 15,
    "steps_hi": 15,
-   "cost_share": 0.21033716013005246,
-   "cost_share_cached": 0.20938524539207048,
+   "cost_share": 0.20700837698471833,
+   "cost_share_cached": 0.20892426868784614,
    "resolve": null,
    "resolved_per_dollar": null
   },
@@ -1572,8 +1682,8 @@
    "n": 4000,
    "steps_lo": 15,
    "steps_hi": 15,
-   "cost_share": 0.20664857687988408,
-   "cost_share_cached": 0.20739615773920977,
+   "cost_share": 0.1983676942841334,
+   "cost_share_cached": 0.19949341240152502,
    "resolve": null,
    "resolved_per_dollar": null
   },
@@ -1586,8 +1696,8 @@
    "n": 4000,
    "steps_lo": 15,
    "steps_hi": 15,
-   "cost_share": 0.19183543435378383,
-   "cost_share_cached": 0.1953111074578875,
+   "cost_share": 0.18988069521293535,
+   "cost_share_cached": 0.19101333036092655,
    "resolve": null,
    "resolved_per_dollar": null
   },
@@ -1600,8 +1710,8 @@
    "n": 4000,
    "steps_lo": 15,
    "steps_hi": 85,
-   "cost_share": 0.21055118874978962,
-   "cost_share_cached": 0.20502511862245532,
+   "cost_share": 0.21343946968733452,
+   "cost_share_cached": 0.2080766674769693,
    "resolve": null,
    "resolved_per_dollar": null
   },
@@ -1614,8 +1724,8 @@
    "n": 1166,
    "steps_lo": 3,
    "steps_hi": 4,
-   "cost_share": 0.0009231473704417943,
-   "cost_share_cached": 0.003688875172105101,
+   "cost_share": 0.0008933372687203402,
+   "cost_share_cached": 0.0036106082758538853,
    "resolve": 0.0,
    "resolved_per_dollar": 0.0
   },
@@ -1628,10 +1738,10 @@
    "n": 1165,
    "steps_lo": 4,
    "steps_hi": 10,
-   "cost_share": 0.006111958005560761,
-   "cost_share_cached": 0.013834040435100272,
+   "cost_share": 0.0058273304518198675,
+   "cost_share_cached": 0.013155480558468257,
    "resolve": 0.0463519313304721,
-   "resolved_per_dollar": 2.3983096713436387
+   "resolved_per_dollar": 2.4197379638872905
   },
   {
    "dataset": "SWE-Gym/OpenHands-Sampled-Trajectories",
@@ -1642,10 +1752,10 @@
    "n": 1165,
    "steps_lo": 10,
    "steps_hi": 19,
-   "cost_share": 0.08450430579543329,
-   "cost_share_cached": 0.1207000677846799,
-   "resolve": 0.17768240343347638,
-   "resolved_per_dollar": 0.6649413911021052
+   "cost_share": 0.08426312538614539,
+   "cost_share_cached": 0.1199646476534148,
+   "resolve": 0.18369098712446352,
+   "resolved_per_dollar": 0.6631632249316499
   },
   {
    "dataset": "SWE-Gym/OpenHands-Sampled-Trajectories",
@@ -1656,10 +1766,10 @@
    "n": 1165,
    "steps_lo": 19,
    "steps_hi": 31,
-   "cost_share": 0.23701079869103486,
-   "cost_share_cached": 0.26046029648382074,
-   "resolve": 0.09957081545064378,
-   "resolved_per_dollar": 0.13285616621052215
+   "cost_share": 0.23642548740522637,
+   "cost_share_cached": 0.26019560525081037,
+   "resolve": 0.0944206008583691,
+   "resolved_per_dollar": 0.12149058325163868
   },
   {
    "dataset": "SWE-Gym/OpenHands-Sampled-Trajectories",
@@ -1670,10 +1780,10 @@
    "n": 1165,
    "steps_lo": 31,
    "steps_hi": 99,
-   "cost_share": 0.671449790137531,
-   "cost_share_cached": 0.6013167201242844,
-   "resolve": 0.04034334763948498,
-   "resolved_per_dollar": 0.01900098766689188
+   "cost_share": 0.6725907194880881,
+   "cost_share_cached": 0.6030736582614532,
+   "resolve": 0.039484978540772535,
+   "resolved_per_dollar": 0.01785875527535016
   },
   {
    "dataset": "SWE-bench/SWE-smith-trajectories",
@@ -1684,10 +1794,10 @@
    "n": 807,
    "steps_lo": 5,
    "steps_hi": 11,
-   "cost_share": 0.023124765480163834,
-   "cost_share_cached": 0.04388587119015454,
-   "resolve": 0.40148698884758366,
-   "resolved_per_dollar": 3.124712754270242
+   "cost_share": 0.02319938954530171,
+   "cost_share_cached": 0.04382500373287286,
+   "resolve": 0.40272614622057,
+   "resolved_per_dollar": 3.1242742070688228
   },
   {
    "dataset": "SWE-bench/SWE-smith-trajectories",
@@ -1698,10 +1808,10 @@
    "n": 807,
    "steps_lo": 11,
    "steps_hi": 14,
-   "cost_share": 0.044609218514264595,
-   "cost_share_cached": 0.07044710813537208,
-   "resolve": 0.4485749690210657,
-   "resolved_per_dollar": 1.8097824912912823
+   "cost_share": 0.044465588958462095,
+   "cost_share_cached": 0.07042681456332406,
+   "resolve": 0.44609665427509293,
+   "resolved_per_dollar": 1.8055968627634138
   },
   {
    "dataset": "SWE-bench/SWE-smith-trajectories",
@@ -1712,10 +1822,10 @@
    "n": 807,
    "steps_lo": 14,
    "steps_hi": 20,
-   "cost_share": 0.07597975087801596,
-   "cost_share_cached": 0.10321884736932382,
-   "resolve": 0.4052044609665427,
-   "resolved_per_dollar": 0.9598255674653865
+   "cost_share": 0.07670611688868931,
+   "cost_share_cached": 0.10359592379194511,
+   "resolve": 0.41511771995043373,
+   "resolved_per_dollar": 0.9739959451589344
   },
   {
    "dataset": "SWE-bench/SWE-smith-trajectories",
@@ -1726,10 +1836,10 @@
    "n": 806,
    "steps_lo": 20,
    "steps_hi": 30,
-   "cost_share": 0.15506734379212267,
-   "cost_share_cached": 0.1746646675813133,
-   "resolve": 0.44292803970223327,
-   "resolved_per_dollar": 0.5134407040533647
+   "cost_share": 0.15384985172824261,
+   "cost_share_cached": 0.17377298179900394,
+   "resolve": 0.43300248138957814,
+   "resolved_per_dollar": 0.5059069954466643
   },
   {
    "dataset": "SWE-bench/SWE-smith-trajectories",
@@ -1740,10 +1850,10 @@
    "n": 806,
    "steps_lo": 30,
    "steps_hi": 138,
-   "cost_share": 0.7012189213354326,
-   "cost_share_cached": 0.6077835057238368,
-   "resolve": 0.36724565756823824,
-   "resolved_per_dollar": 0.09414136945664645
+   "cost_share": 0.7017790528793042,
+   "cost_share_cached": 0.6083792761128538,
+   "resolve": 0.3684863523573201,
+   "resolved_per_dollar": 0.09438400201004753
   },
   {
    "dataset": "SWE-bench/SWE-smith-trajectories",
@@ -1754,10 +1864,10 @@
    "n": 3183,
    "steps_lo": 7,
    "steps_hi": 20,
-   "cost_share": 0.045245546481067066,
-   "cost_share_cached": 0.06484140033616491,
-   "resolve": 0.6597549481621112,
-   "resolved_per_dollar": 1.650802147520968
+   "cost_share": 0.045135022684060264,
+   "cost_share_cached": 0.06473804629767071,
+   "resolve": 0.6581841030474396,
+   "resolved_per_dollar": 1.650904266145134
   },
   {
    "dataset": "SWE-bench/SWE-smith-trajectories",
@@ -1768,10 +1878,10 @@
    "n": 3183,
    "steps_lo": 20,
    "steps_hi": 26,
-   "cost_share": 0.08438101273737175,
-   "cost_share_cached": 0.10488611741251198,
-   "resolve": 0.5507382972038957,
-   "resolved_per_dollar": 0.7389052480248692
+   "cost_share": 0.0842199325938602,
+   "cost_share_cached": 0.10468990142454233,
+   "resolve": 0.5526233113415018,
+   "resolved_per_dollar": 0.7428523088692685
   },
   {
    "dataset": "SWE-bench/SWE-smith-trajectories",
@@ -1782,10 +1892,10 @@
    "n": 3183,
    "steps_lo": 26,
    "steps_hi": 34,
-   "cost_share": 0.13650371898586752,
-   "cost_share_cached": 0.15281134043339753,
-   "resolve": 0.46497015394282126,
-   "resolved_per_dollar": 0.3856282132663032
+   "cost_share": 0.13599363445162418,
+   "cost_share_cached": 0.15230920669736786,
+   "resolve": 0.4662268300345586,
+   "resolved_per_dollar": 0.3881207375342876
   },
   {
    "dataset": "SWE-bench/SWE-smith-trajectories",
@@ -1796,10 +1906,10 @@
    "n": 3183,
    "steps_lo": 34,
    "steps_hi": 48,
-   "cost_share": 0.23453079849228062,
-   "cost_share_cached": 0.2374414007952895,
-   "resolve": 0.3565818410304744,
-   "resolved_per_dollar": 0.17212642465144196
+   "cost_share": 0.23527033719237128,
+   "cost_share_cached": 0.2381635169731821,
+   "resolve": 0.354382657869934,
+   "resolved_per_dollar": 0.1705271179935304
   },
   {
    "dataset": "SWE-bench/SWE-smith-trajectories",
@@ -1810,10 +1920,10 @@
    "n": 3182,
    "steps_lo": 48,
    "steps_hi": 151,
-   "cost_share": 0.49933892330341334,
-   "cost_share_cached": 0.4400197410226358,
-   "resolve": 0.23161533626649905,
-   "resolved_per_dollar": 0.052495688479957225
+   "cost_share": 0.4993810730780837,
+   "cost_share_cached": 0.4400993286072372,
+   "resolve": 0.2322438717787555,
+   "resolved_per_dollar": 0.05263369841992425
   },
   {
    "dataset": "SWE-bench/SWE-smith-trajectories",
@@ -1824,10 +1934,10 @@
    "n": 1020,
    "steps_lo": 4,
    "steps_hi": 10,
-   "cost_share": 0.024434302528204676,
-   "cost_share_cached": 0.04710638642315953,
-   "resolve": 0.5,
-   "resolved_per_dollar": 4.357618916023841
+   "cost_share": 0.024255347476242844,
+   "cost_share_cached": 0.04700600576326122,
+   "resolve": 0.4676470588235294,
+   "resolved_per_dollar": 4.105733853575434
   },
   {
    "dataset": "SWE-bench/SWE-smith-trajectories",
@@ -1838,10 +1948,10 @@
    "n": 1020,
    "steps_lo": 10,
    "steps_hi": 12,
-   "cost_share": 0.04154834634551507,
-   "cost_share_cached": 0.06859542302350985,
-   "resolve": 0.47058823529411764,
-   "resolved_per_dollar": 2.411940068113186
+   "cost_share": 0.04172718966748014,
+   "cost_share_cached": 0.0686953840569366,
+   "resolve": 0.5029411764705882,
+   "resolved_per_dollar": 2.5667179299777123
   },
   {
    "dataset": "SWE-bench/SWE-smith-trajectories",
@@ -1852,10 +1962,10 @@
    "n": 1020,
    "steps_lo": 12,
    "steps_hi": 17,
-   "cost_share": 0.06799802173506087,
-   "cost_share_cached": 0.09685299235724922,
-   "resolve": 0.40490196078431373,
-   "resolved_per_dollar": 1.2680395279299455
+   "cost_share": 0.06793101868095905,
+   "cost_share_cached": 0.09678922445162563,
+   "resolve": 0.4,
+   "resolved_per_dollar": 1.2539261256799092
   },
   {
    "dataset": "SWE-bench/SWE-smith-trajectories",
@@ -1866,10 +1976,10 @@
    "n": 1019,
    "steps_lo": 17,
    "steps_hi": 26,
-   "cost_share": 0.1432238239301638,
-   "cost_share_cached": 0.16837055807775247,
-   "resolve": 0.36702649656526004,
-   "resolved_per_dollar": 0.5451742760503242
+   "cost_share": 0.14329036638939385,
+   "cost_share_cached": 0.16843277278036453,
+   "resolve": 0.3719332679097154,
+   "resolved_per_dollar": 0.5522072852919874
   },
   {
    "dataset": "SWE-bench/SWE-smith-trajectories",
@@ -1880,10 +1990,10 @@
    "n": 1019,
    "steps_lo": 26,
    "steps_hi": 127,
-   "cost_share": 0.7227955054610553,
-   "cost_share_cached": 0.6190746401183291,
+   "cost_share": 0.722796077785924,
+   "cost_share_cached": 0.6190766129478121,
    "resolve": 0.31108930323846906,
-   "resolved_per_dollar": 0.09156359526054675
+   "resolved_per_dollar": 0.09156371189464999
   },
   {
    "dataset": "SWE-bench/SWE-smith-trajectories",
@@ -1894,10 +2004,10 @@
    "n": 2875,
    "steps_lo": 8,
    "steps_hi": 20,
-   "cost_share": 0.04294249063783438,
-   "cost_share_cached": 0.061782362146381074,
-   "resolve": 0.5906086956521739,
-   "resolved_per_dollar": 1.549605264205111
+   "cost_share": 0.04294431097293466,
+   "cost_share_cached": 0.061829889033343154,
+   "resolve": 0.5916521739130435,
+   "resolved_per_dollar": 1.5522790118312266
   },
   {
    "dataset": "SWE-bench/SWE-smith-trajectories",
@@ -1908,10 +2018,10 @@
    "n": 2875,
    "steps_lo": 20,
    "steps_hi": 26,
-   "cost_share": 0.08076370180146752,
-   "cost_share_cached": 0.10145238919083335,
-   "resolve": 0.46608695652173915,
-   "resolved_per_dollar": 0.650218330359492
+   "cost_share": 0.0811945866431147,
+   "cost_share_cached": 0.10181704962623954,
+   "resolve": 0.46469565217391307,
+   "resolved_per_dollar": 0.6448378092478936
   },
   {
    "dataset": "SWE-bench/SWE-smith-trajectories",
@@ -1922,10 +2032,10 @@
    "n": 2875,
    "steps_lo": 26,
    "steps_hi": 34,
-   "cost_share": 0.1335393150596212,
-   "cost_share_cached": 0.15153956172998947,
-   "resolve": 0.37182608695652175,
-   "resolved_per_dollar": 0.3137178194130219
+   "cost_share": 0.13349113769581997,
+   "cost_share_cached": 0.15150850085279344,
+   "resolve": 0.3725217391304348,
+   "resolved_per_dollar": 0.3144185404295734
   },
   {
    "dataset": "SWE-bench/SWE-smith-trajectories",
@@ -1936,10 +2046,10 @@
    "n": 2875,
    "steps_lo": 34,
    "steps_hi": 48,
-   "cost_share": 0.2370656746008429,
-   "cost_share_cached": 0.23987140677029253,
-   "resolve": 0.28208695652173915,
-   "resolved_per_dollar": 0.13406728210690586
+   "cost_share": 0.23638301769756193,
+   "cost_share_cached": 0.23932270007757458,
+   "resolve": 0.2803478260869565,
+   "resolved_per_dollar": 0.13362566517314273
   },
   {
    "dataset": "SWE-bench/SWE-smith-trajectories",
@@ -1950,10 +2060,10 @@
    "n": 2874,
    "steps_lo": 48,
    "steps_hi": 151,
-   "cost_share": 0.5056888179002316,
-   "cost_share_cached": 0.4453542801625034,
-   "resolve": 0.18997912317327767,
-   "resolved_per_dollar": 0.042313594436223234
+   "cost_share": 0.5059869469905685,
+   "cost_share_cached": 0.4455218604100497,
+   "resolve": 0.19137091162143355,
+   "resolved_per_dollar": 0.04259851767334124
   },
   {
    "dataset": "SWE-bench/SWE-smith-trajectories",
@@ -1964,10 +2074,10 @@
    "n": 1040,
    "steps_lo": 4,
    "steps_hi": 10,
-   "cost_share": 0.023979942251623275,
-   "cost_share_cached": 0.04607739794689973,
+   "cost_share": 0.023979808685400658,
+   "cost_share_cached": 0.04607680117024701,
    "resolve": 0.4846153846153846,
-   "resolved_per_dollar": 4.122395492612028
+   "resolved_per_dollar": 4.122425030265469
   },
   {
    "dataset": "SWE-bench/SWE-smith-trajectories",
@@ -1978,10 +2088,10 @@
    "n": 1040,
    "steps_lo": 10,
    "steps_hi": 13,
-   "cost_share": 0.04214871062549904,
-   "cost_share_cached": 0.068741881337382,
+   "cost_share": 0.04214873078788357,
+   "cost_share_cached": 0.0687420840802569,
    "resolve": 0.4971153846153846,
-   "resolved_per_dollar": 2.4058774441190294
+   "resolved_per_dollar": 2.4058801311222355
   },
   {
    "dataset": "SWE-bench/SWE-smith-trajectories",
@@ -1992,10 +2102,10 @@
    "n": 1040,
    "steps_lo": 13,
    "steps_hi": 18,
-   "cost_share": 0.07021975254463775,
-   "cost_share_cached": 0.09877004898956164,
+   "cost_share": 0.07021955387308082,
+   "cost_share_cached": 0.09876937015667901,
    "resolve": 0.425,
-   "resolved_per_dollar": 1.2346112378063376
+   "resolved_per_dollar": 1.234616700354523
   },
   {
    "dataset": "SWE-bench/SWE-smith-trajectories",
@@ -2006,10 +2116,10 @@
    "n": 1039,
    "steps_lo": 18,
    "steps_hi": 27,
-   "cost_share": 0.14816773196949978,
-   "cost_share_cached": 0.17168462508859625,
+   "cost_share": 0.14816743168738092,
+   "cost_share_cached": 0.1716837922537788,
    "resolve": 0.397497593840231,
-   "resolved_per_dollar": 0.5467183737284014
+   "resolved_per_dollar": 0.5467203538641002
   },
   {
    "dataset": "SWE-bench/SWE-smith-trajectories",
@@ -2020,10 +2130,10 @@
    "n": 1039,
    "steps_lo": 27,
    "steps_hi": 127,
-   "cost_share": 0.7154838626087405,
-   "cost_share_cached": 0.6147260466375606,
+   "cost_share": 0.7154844749662547,
+   "cost_share_cached": 0.6147279523390382,
    "resolve": 0.31183830606352264,
-   "resolved_per_dollar": 0.0888203373525203
+   "resolved_per_dollar": 0.08882040302162478
   },
   {
    "dataset": "SWE-bench/SWE-smith-trajectories",
@@ -2034,10 +2144,10 @@
    "n": 2897,
    "steps_lo": 6,
    "steps_hi": 19,
-   "cost_share": 0.042902232386447116,
-   "cost_share_cached": 0.062086206658862046,
-   "resolve": 0.6527442181567138,
-   "resolved_per_dollar": 1.696759905956432
+   "cost_share": 0.04295219192637542,
+   "cost_share_cached": 0.06214708865188396,
+   "resolve": 0.6541249568519157,
+   "resolved_per_dollar": 1.698372959600941
   },
   {
    "dataset": "SWE-bench/SWE-smith-trajectories",
@@ -2048,10 +2158,10 @@
    "n": 2897,
    "steps_lo": 19,
    "steps_hi": 26,
-   "cost_share": 0.08248074611199972,
-   "cost_share_cached": 0.10307613996338282,
+   "cost_share": 0.08252635240533851,
+   "cost_share_cached": 0.10313505568002868,
    "resolve": 0.5284777355885398,
-   "resolved_per_dollar": 0.7145479297732564
+   "resolved_per_dollar": 0.7141537557708239
   },
   {
    "dataset": "SWE-bench/SWE-smith-trajectories",
@@ -2062,10 +2172,10 @@
    "n": 2897,
    "steps_lo": 26,
    "steps_hi": 34,
-   "cost_share": 0.13629329095020118,
-   "cost_share_cached": 0.15321691938807552,
-   "resolve": 0.43872972040041425,
-   "resolved_per_dollar": 0.3589879143041215
+   "cost_share": 0.13663141347428087,
+   "cost_share_cached": 0.15359762507972383,
+   "resolve": 0.43320676561960647,
+   "resolved_per_dollar": 0.3535919331965746
   },
   {
    "dataset": "SWE-bench/SWE-smith-trajectories",
@@ -2076,10 +2186,10 @@
    "n": 2897,
    "steps_lo": 34,
    "steps_hi": 48,
-   "cost_share": 0.23600827875327174,
-   "cost_share_cached": 0.2393009365087264,
-   "resolve": 0.3317224715222644,
-   "resolved_per_dollar": 0.15674904574761211
+   "cost_share": 0.2348411097241266,
+   "cost_share_cached": 0.23821288882058697,
+   "resolve": 0.33724542630307214,
+   "resolved_per_dollar": 0.1601509885291818
   },
   {
    "dataset": "SWE-bench/SWE-smith-trajectories",
@@ -2090,10 +2200,10 @@
    "n": 2897,
    "steps_lo": 48,
    "steps_hi": 151,
-   "cost_share": 0.5023154517980789,
-   "cost_share_cached": 0.4423197974809527,
-   "resolve": 0.21470486710390058,
-   "resolved_per_dollar": 0.04766752493355781
+   "cost_share": 0.5030489324698777,
+   "cost_share_cached": 0.44290734176777496,
+   "resolve": 0.21332412840869866,
+   "resolved_per_dollar": 0.0472919723806672
   },
   {
    "dataset": "nebius/SWE-agent-trajectories",
@@ -2104,10 +2214,10 @@
    "n": 3717,
    "steps_lo": 1,
    "steps_hi": 10,
-   "cost_share": 0.014453249637789704,
-   "cost_share_cached": 0.03221439598295248,
+   "cost_share": 0.014451834685333119,
+   "cost_share_cached": 0.03221182255102569,
    "resolve": 0.2200699488835082,
-   "resolved_per_dollar": 5.196225053029913
+   "resolved_per_dollar": 5.1967230963453535
   },
   {
    "dataset": "nebius/SWE-agent-trajectories",
@@ -2118,10 +2228,10 @@
    "n": 3717,
    "steps_lo": 10,
    "steps_hi": 14,
-   "cost_share": 0.03267259029140155,
-   "cost_share_cached": 0.05614667202323036,
-   "resolve": 0.2679580306698951,
-   "resolved_per_dollar": 2.7988261588206713
+   "cost_share": 0.032659782121890274,
+   "cost_share_cached": 0.05616948118994869,
+   "resolve": 0.2598870056497175,
+   "resolved_per_dollar": 2.7155831232783414
   },
   {
    "dataset": "nebius/SWE-agent-trajectories",
@@ -2132,10 +2242,10 @@
    "n": 3716,
    "steps_lo": 14,
    "steps_hi": 21,
-   "cost_share": 0.0744459139609333,
-   "cost_share_cached": 0.10512350008665895,
-   "resolve": 0.19052744886975242,
-   "resolved_per_dollar": 0.873157410786817
+   "cost_share": 0.0744247288090833,
+   "cost_share_cached": 0.1050744478703432,
+   "resolve": 0.20182992465016147,
+   "resolved_per_dollar": 0.9252162679148018
   },
   {
    "dataset": "nebius/SWE-agent-trajectories",
@@ -2146,10 +2256,10 @@
    "n": 3716,
    "steps_lo": 21,
    "steps_hi": 37,
-   "cost_share": 0.23363323786487625,
-   "cost_share_cached": 0.2590480033176194,
-   "resolve": 0.0810010764262648,
-   "resolved_per_dollar": 0.11828563904481999
+   "cost_share": 0.23407904652330822,
+   "cost_share_cached": 0.2593974936151049,
+   "resolve": 0.07884822389666307,
+   "resolved_per_dollar": 0.11492230771129262
   },
   {
    "dataset": "nebius/SWE-agent-trajectories",
@@ -2160,10 +2270,10 @@
    "n": 3716,
    "steps_lo": 37,
    "steps_hi": 398,
-   "cost_share": 0.6447950082450016,
-   "cost_share_cached": 0.5474674285895387,
-   "resolve": 0.03444564047362755,
-   "resolved_per_dollar": 0.018225877866853753
+   "cost_share": 0.6443846078603853,
+   "cost_share_cached": 0.5471467547735774,
+   "resolve": 0.03336921420882669,
+   "resolved_per_dollar": 0.01766752785976867
   },
   {
    "dataset": "nebius/SWE-agent-trajectories",
@@ -2174,10 +2284,10 @@
    "n": 219,
    "steps_lo": 3,
    "steps_hi": 11,
-   "cost_share": 0.010224955947132687,
-   "cost_share_cached": 0.022825653280918894,
-   "resolve": 0.45662100456621,
-   "resolved_per_dollar": 10.065673486663744
+   "cost_share": 0.010320119854218445,
+   "cost_share_cached": 0.023005002406915213,
+   "resolve": 0.4611872146118721,
+   "resolved_per_dollar": 10.072584439672099
   },
   {
    "dataset": "nebius/SWE-agent-trajectories",
@@ -2188,10 +2298,10 @@
    "n": 219,
    "steps_lo": 11,
    "steps_hi": 18,
-   "cost_share": 0.027240269326855995,
-   "cost_share_cached": 0.047795159810721355,
-   "resolve": 0.3744292237442922,
-   "resolved_per_dollar": 3.09818066519148
+   "cost_share": 0.027147791659644496,
+   "cost_share_cached": 0.047636857149453295,
+   "resolve": 0.3698630136986301,
+   "resolved_per_dollar": 3.0708230749834717
   },
   {
    "dataset": "nebius/SWE-agent-trajectories",
@@ -2202,10 +2312,10 @@
    "n": 218,
    "steps_lo": 18,
    "steps_hi": 33,
-   "cost_share": 0.1387767899204401,
-   "cost_share_cached": 0.17129189999001,
+   "cost_share": 0.1391492787620389,
+   "cost_share_cached": 0.17230401345602223,
    "resolve": 0.10091743119266056,
-   "resolved_per_dollar": 0.1631586590844168
+   "resolved_per_dollar": 0.16272189950894603
   },
   {
    "dataset": "nebius/SWE-agent-trajectories",
@@ -2216,10 +2326,10 @@
    "n": 218,
    "steps_lo": 33,
    "steps_hi": 47,
-   "cost_share": 0.2751803671904034,
-   "cost_share_cached": 0.2877321864045857,
+   "cost_share": 0.27394944562631973,
+   "cost_share_cached": 0.2860989599668692,
    "resolve": 0.027522935779816515,
-   "resolved_per_dollar": 0.022440787261864117
+   "resolved_per_dollar": 0.022541619183215476
   },
   {
    "dataset": "nebius/SWE-agent-trajectories",
@@ -2230,10 +2340,10 @@
    "n": 218,
    "steps_lo": 47,
    "steps_hi": 321,
-   "cost_share": 0.5485776176151683,
-   "cost_share_cached": 0.47035510051376367,
+   "cost_share": 0.5494333640977788,
+   "cost_share_cached": 0.47095516702074014,
    "resolve": 0.09174311926605505,
-   "resolved_per_dollar": 0.037522882696814
+   "resolved_per_dollar": 0.03746444053260737
   },
   {
    "dataset": "nebius/SWE-rebench-openhands-trajectories",
@@ -2244,10 +2354,10 @@
    "n": 4000,
    "steps_lo": 21,
    "steps_hi": 48,
-   "cost_share": 0.09986030039326488,
-   "cost_share_cached": 0.11450800746451112,
-   "resolve": 0.653,
-   "resolved_per_dollar": 0.2603929608415518
+   "cost_share": 0.09985114939120232,
+   "cost_share_cached": 0.11445842685711936,
+   "resolve": 0.65525,
+   "resolved_per_dollar": 0.2613136726134384
   },
   {
    "dataset": "nebius/SWE-rebench-openhands-trajectories",
@@ -2258,10 +2368,10 @@
    "n": 4000,
    "steps_lo": 48,
    "steps_hi": 56,
-   "cost_share": 0.13965548110512127,
-   "cost_share_cached": 0.1503745763877968,
-   "resolve": 0.57275,
-   "resolved_per_dollar": 0.16331122606374232
+   "cost_share": 0.13970304583920437,
+   "cost_share_cached": 0.1504517661786359,
+   "resolve": 0.56975,
+   "resolved_per_dollar": 0.1624002268624138
   },
   {
    "dataset": "nebius/SWE-rebench-openhands-trajectories",
@@ -2272,10 +2382,10 @@
    "n": 4000,
    "steps_lo": 56,
    "steps_hi": 66,
-   "cost_share": 0.1776259681303626,
-   "cost_share_cached": 0.18308560499643733,
-   "resolve": 0.4865,
-   "resolved_per_dollar": 0.10906497729729152
+   "cost_share": 0.1776929966191985,
+   "cost_share_cached": 0.183078500820978,
+   "resolve": 0.486,
+   "resolved_per_dollar": 0.10891159804432962
   },
   {
    "dataset": "nebius/SWE-rebench-openhands-trajectories",
@@ -2286,10 +2396,10 @@
    "n": 4000,
    "steps_lo": 66,
    "steps_hi": 81,
-   "cost_share": 0.23527405251172243,
-   "cost_share_cached": 0.231166051613184,
-   "resolve": 0.4075,
-   "resolved_per_dollar": 0.06897036219411025
+   "cost_share": 0.23524400855969496,
+   "cost_share_cached": 0.23118812373658032,
+   "resolve": 0.40875,
+   "resolved_per_dollar": 0.06919064307094988
   },
   {
    "dataset": "nebius/SWE-rebench-openhands-trajectories",
@@ -2300,10 +2410,10 @@
    "n": 4000,
    "steps_lo": 81,
    "steps_hi": 114,
-   "cost_share": 0.34758419785952893,
-   "cost_share_cached": 0.32086575953807067,
+   "cost_share": 0.3475087995906998,
+   "cost_share_cached": 0.32082318240668634,
    "resolve": 0.2745,
-   "resolved_per_dollar": 0.03144787115722844
+   "resolved_per_dollar": 0.03145463971513151
   },
   {
    "dataset": "nvidia/Open-SWE-Traces",
@@ -2314,10 +2424,10 @@
    "n": 4000,
    "steps_lo": 11,
    "steps_hi": 39,
-   "cost_share": 0.06988912813312356,
-   "cost_share_cached": 0.08662367012321366,
-   "resolve": 0.5666568134791605,
-   "resolved_per_dollar": 0.3127773887870742
+   "cost_share": 0.06988621333021025,
+   "cost_share_cached": 0.08661431957414949,
+   "resolve": 0.5669128508124077,
+   "resolved_per_dollar": 0.313116767320491
   },
   {
    "dataset": "nvidia/Open-SWE-Traces",
@@ -2328,10 +2438,10 @@
    "n": 4000,
    "steps_lo": 39,
    "steps_hi": 49,
-   "cost_share": 0.11556784237487396,
-   "cost_share_cached": 0.12911915154650394,
-   "resolve": 0.48588271796462923,
-   "resolved_per_dollar": 0.15451747832448348
+   "cost_share": 0.11556378717092884,
+   "cost_share_cached": 0.1291170126962481,
+   "resolve": 0.484472049689441,
+   "resolved_per_dollar": 0.1539308586731394
   },
   {
    "dataset": "nvidia/Open-SWE-Traces",
@@ -2342,10 +2452,10 @@
    "n": 4000,
    "steps_lo": 49,
    "steps_hi": 60,
-   "cost_share": 0.16159860767904335,
-   "cost_share_cached": 0.16976436074355394,
-   "resolve": 0.4335775724753106,
-   "resolved_per_dollar": 0.09603805810900588
+   "cost_share": 0.1617911445655704,
+   "cost_share_cached": 0.16999808457812246,
+   "resolve": 0.4349074664964901,
+   "resolved_per_dollar": 0.09606473031938657
   },
   {
    "dataset": "nvidia/Open-SWE-Traces",
@@ -2356,10 +2466,10 @@
    "n": 4000,
    "steps_lo": 60,
    "steps_hi": 75,
-   "cost_share": 0.23007258327853322,
-   "cost_share_cached": 0.2284888454875407,
-   "resolve": 0.37121721587088097,
-   "resolved_per_dollar": 0.05471760298848765
+   "cost_share": 0.22981204974101577,
+   "cost_share_cached": 0.22819218815261208,
+   "resolve": 0.3706317204301075,
+   "resolved_per_dollar": 0.05473001605648522
   },
   {
    "dataset": "nvidia/Open-SWE-Traces",
@@ -2370,10 +2480,10 @@
    "n": 4000,
    "steps_lo": 75,
    "steps_hi": 200,
-   "cost_share": 0.42287183853442567,
-   "cost_share_cached": 0.38600397209918774,
-   "resolve": 0.30034602076124567,
-   "resolved_per_dollar": 0.023406356781575183
+   "cost_share": 0.42294680519227573,
+   "cost_share_cached": 0.38607839499886737,
+   "resolve": 0.3009675190048376,
+   "resolved_per_dollar": 0.02348309124906421
   },
   {
    "dataset": "nvidia/Open-SWE-Traces",
@@ -2384,10 +2494,10 @@
    "n": 4000,
    "steps_lo": 8,
    "steps_hi": 47,
-   "cost_share": 0.059958729713193736,
-   "cost_share_cached": 0.07365917102131679,
-   "resolve": 0.6387821460242389,
-   "resolved_per_dollar": 0.2709402210920323
+   "cost_share": 0.05982962037888819,
+   "cost_share_cached": 0.07351691753944983,
+   "resolve": 0.6394799054373522,
+   "resolved_per_dollar": 0.27190183996588263
   },
   {
    "dataset": "nvidia/Open-SWE-Traces",
@@ -2398,10 +2508,10 @@
    "n": 4000,
    "steps_lo": 47,
    "steps_hi": 60,
-   "cost_share": 0.11041155965203264,
-   "cost_share_cached": 0.12239454799594289,
-   "resolve": 0.5272614622057001,
-   "resolved_per_dollar": 0.11588204437076985
+   "cost_share": 0.11043296035020293,
+   "cost_share_cached": 0.12242362899690658,
+   "resolve": 0.5282258064516129,
+   "resolved_per_dollar": 0.11592766031301849
   },
   {
    "dataset": "nvidia/Open-SWE-Traces",
@@ -2412,10 +2522,10 @@
    "n": 4000,
    "steps_lo": 60,
    "steps_hi": 75,
-   "cost_share": 0.16412149963436115,
-   "cost_share_cached": 0.17114224690410876,
-   "resolve": 0.45722618276085547,
-   "resolved_per_dollar": 0.06462977952954521
+   "cost_share": 0.16430548569890832,
+   "cost_share_cached": 0.17134460998548776,
+   "resolve": 0.4551033591731266,
+   "resolved_per_dollar": 0.06446590247415115
   },
   {
    "dataset": "nvidia/Open-SWE-Traces",
@@ -2426,10 +2536,10 @@
    "n": 4000,
    "steps_lo": 75,
    "steps_hi": 95,
-   "cost_share": 0.23651110779824303,
-   "cost_share_cached": 0.23460068408901016,
-   "resolve": 0.41184298070525616,
-   "resolved_per_dollar": 0.03934959254155347
+   "cost_share": 0.23646631416970604,
+   "cost_share_cached": 0.2345528010221012,
+   "resolve": 0.41186271242919026,
+   "resolved_per_dollar": 0.03929346484569772
   },
   {
    "dataset": "nvidia/Open-SWE-Traces",
@@ -2440,10 +2550,10 @@
    "n": 4000,
    "steps_lo": 95,
    "steps_hi": 200,
-   "cost_share": 0.4289971032021694,
-   "cost_share_cached": 0.39820334998962187,
-   "resolve": 0.3328646748681898,
-   "resolved_per_dollar": 0.016594598781805112
+   "cost_share": 0.4289656194022946,
+   "cost_share_cached": 0.3981620424560556,
+   "resolve": 0.33309883925430883,
+   "resolved_per_dollar": 0.016595816737285492
   },
   {
    "dataset": "nvidia/Open-SWE-Traces",
@@ -2454,10 +2564,10 @@
    "n": 4000,
    "steps_lo": 10,
    "steps_hi": 38,
-   "cost_share": 0.07071533175517214,
-   "cost_share_cached": 0.09404154302349389,
-   "resolve": null,
-   "resolved_per_dollar": null
+   "cost_share": 0.07068378237427696,
+   "cost_share_cached": 0.09399749378466521,
+   "resolve": 0.41046831955922863,
+   "resolved_per_dollar": 0.4132526557757501
   },
   {
    "dataset": "nvidia/Open-SWE-Traces",
@@ -2468,10 +2578,10 @@
    "n": 4000,
    "steps_lo": 38,
    "steps_hi": 47,
-   "cost_share": 0.11782993811520269,
-   "cost_share_cached": 0.1386874674155401,
-   "resolve": null,
-   "resolved_per_dollar": null
+   "cost_share": 0.1179706777010041,
+   "cost_share_cached": 0.13886988469067443,
+   "resolve": 0.33874125874125877,
+   "resolved_per_dollar": 0.20124228263618657
   },
   {
    "dataset": "nvidia/Open-SWE-Traces",
@@ -2482,10 +2592,10 @@
    "n": 4000,
    "steps_lo": 47,
    "steps_hi": 56,
-   "cost_share": 0.16190595954378648,
-   "cost_share_cached": 0.17530939655954975,
-   "resolve": null,
-   "resolved_per_dollar": null
+   "cost_share": 0.16177871512890396,
+   "cost_share_cached": 0.1752235989966783,
+   "resolve": 0.2831833520809899,
+   "resolved_per_dollar": 0.12202737095209501
   },
   {
    "dataset": "nvidia/Open-SWE-Traces",
@@ -2496,10 +2606,10 @@
    "n": 4000,
    "steps_lo": 56,
    "steps_hi": 71,
-   "cost_share": 0.22345990140503208,
-   "cost_share_cached": 0.223116523146176,
-   "resolve": null,
-   "resolved_per_dollar": null
+   "cost_share": 0.22339860061162722,
+   "cost_share_cached": 0.22303072145942146,
+   "resolve": 0.2530917457578372,
+   "resolved_per_dollar": 0.07722383935464903
   },
   {
    "dataset": "nvidia/Open-SWE-Traces",
@@ -2510,10 +2620,10 @@
    "n": 4000,
    "steps_lo": 71,
    "steps_hi": 250,
-   "cost_share": 0.4260888691808058,
-   "cost_share_cached": 0.3688450698552399,
-   "resolve": null,
-   "resolved_per_dollar": null
+   "cost_share": 0.4261682241841886,
+   "cost_share_cached": 0.3688783010685611,
+   "resolve": 0.19020172910662825,
+   "resolved_per_dollar": 0.030360717904374255
   },
   {
    "dataset": "nvidia/Open-SWE-Traces",
@@ -2524,8 +2634,8 @@
    "n": 4000,
    "steps_lo": 17,
    "steps_hi": 64,
-   "cost_share": 0.12647539329832316,
-   "cost_share_cached": 0.14015510361741118,
+   "cost_share": 0.1263957669701232,
+   "cost_share_cached": 0.14007909772588475,
    "resolve": null,
    "resolved_per_dollar": null
   },
@@ -2538,8 +2648,8 @@
    "n": 4000,
    "steps_lo": 64,
    "steps_hi": 72,
-   "cost_share": 0.1608927431300171,
-   "cost_share_cached": 0.16950302926668295,
+   "cost_share": 0.16102228039077499,
+   "cost_share_cached": 0.16963434888282036,
    "resolve": null,
    "resolved_per_dollar": null
   },
@@ -2552,8 +2662,8 @@
    "n": 4000,
    "steps_lo": 72,
    "steps_hi": 81,
-   "cost_share": 0.18749148228532708,
-   "cost_share_cached": 0.19139381197634117,
+   "cost_share": 0.18737492284384363,
+   "cost_share_cached": 0.19126939862009723,
    "resolve": null,
    "resolved_per_dollar": null
   },
@@ -2566,8 +2676,8 @@
    "n": 4000,
    "steps_lo": 81,
    "steps_hi": 94,
-   "cost_share": 0.21736195360651078,
-   "cost_share_cached": 0.2148891420923709,
+   "cost_share": 0.21751838422729455,
+   "cost_share_cached": 0.21503323105843788,
    "resolve": null,
    "resolved_per_dollar": null
   },
@@ -2580,8 +2690,8 @@
    "n": 4000,
    "steps_lo": 94,
    "steps_hi": 246,
-   "cost_share": 0.3077784276798209,
-   "cost_share_cached": 0.28405891304719383,
+   "cost_share": 0.30768864556796194,
+   "cost_share_cached": 0.2839839237127585,
    "resolve": null,
    "resolved_per_dollar": null
   },
@@ -2594,10 +2704,10 @@
    "n": 4000,
    "steps_lo": 19,
    "steps_hi": 63,
-   "cost_share": 0.11342396163873637,
-   "cost_share_cached": 0.1286765184002217,
-   "resolve": null,
-   "resolved_per_dollar": null
+   "cost_share": 0.11354425544345022,
+   "cost_share_cached": 0.1287917425031319,
+   "resolve": 0.6689225771521387,
+   "resolved_per_dollar": 0.1716116399596388
   },
   {
    "dataset": "nvidia/Open-SWE-Traces",
@@ -2608,10 +2718,10 @@
    "n": 4000,
    "steps_lo": 63,
    "steps_hi": 72,
-   "cost_share": 0.15117350693193138,
-   "cost_share_cached": 0.16252207552848622,
-   "resolve": null,
-   "resolved_per_dollar": null
+   "cost_share": 0.1511388692391699,
+   "cost_share_cached": 0.16248474620639247,
+   "resolve": 0.5767429043813723,
+   "resolved_per_dollar": 0.10920240991106787
   },
   {
    "dataset": "nvidia/Open-SWE-Traces",
@@ -2622,10 +2732,10 @@
    "n": 4000,
    "steps_lo": 72,
    "steps_hi": 81,
-   "cost_share": 0.1814444716661412,
-   "cost_share_cached": 0.1874859340501621,
-   "resolve": null,
-   "resolved_per_dollar": null
+   "cost_share": 0.1811802774764468,
+   "cost_share_cached": 0.18724260940037896,
+   "resolve": 0.5312237468496219,
+   "resolved_per_dollar": 0.08256492170421334
   },
   {
    "dataset": "nvidia/Open-SWE-Traces",
@@ -2636,10 +2746,10 @@
    "n": 4000,
    "steps_lo": 81,
    "steps_hi": 95,
-   "cost_share": 0.22105518008595512,
-   "cost_share_cached": 0.21874238068318536,
-   "resolve": null,
-   "resolved_per_dollar": null
+   "cost_share": 0.22122806171794268,
+   "cost_share_cached": 0.21891117143907615,
+   "resolve": 0.47849770642201833,
+   "resolved_per_dollar": 0.05949155015053902
   },
   {
    "dataset": "nvidia/Open-SWE-Traces",
@@ -2650,10 +2760,10 @@
    "n": 4000,
    "steps_lo": 95,
    "steps_hi": 245,
-   "cost_share": 0.33290287967723586,
-   "cost_share_cached": 0.3025730913379446,
-   "resolve": null,
-   "resolved_per_dollar": null
+   "cost_share": 0.3329085361229892,
+   "cost_share_cached": 0.3025697304510192,
+   "resolve": 0.39976345357776466,
+   "resolved_per_dollar": 0.03202513163222642
   },
   {
    "dataset": "nvidia/Open-SWE-Traces",
@@ -2664,10 +2774,10 @@
    "n": 4000,
    "steps_lo": 10,
    "steps_hi": 32,
-   "cost_share": 0.03312327589168915,
-   "cost_share_cached": 0.04934464827913651,
-   "resolve": null,
-   "resolved_per_dollar": null
+   "cost_share": 0.03219170807403911,
+   "cost_share_cached": 0.04771029930738133,
+   "resolve": 0.7287858117326057,
+   "resolved_per_dollar": 1.0598517924997986
   },
   {
    "dataset": "nvidia/Open-SWE-Traces",
@@ -2678,10 +2788,10 @@
    "n": 4000,
    "steps_lo": 32,
    "steps_hi": 42,
-   "cost_share": 0.0667883914600639,
-   "cost_share_cached": 0.08551967949233916,
-   "resolve": null,
-   "resolved_per_dollar": null
+   "cost_share": 0.06613173052077202,
+   "cost_share_cached": 0.08419403738699478,
+   "resolve": 0.6417992320351069,
+   "resolved_per_dollar": 0.4519821059867023
   },
   {
    "dataset": "nvidia/Open-SWE-Traces",
@@ -2692,10 +2802,10 @@
    "n": 4000,
    "steps_lo": 42,
    "steps_hi": 54,
-   "cost_share": 0.11078331784107896,
-   "cost_share_cached": 0.12879540734325956,
-   "resolve": null,
-   "resolved_per_dollar": null
+   "cost_share": 0.11100078019327948,
+   "cost_share_cached": 0.12825471351264536,
+   "resolve": 0.5801073749646792,
+   "resolved_per_dollar": 0.23625346642078687
   },
   {
    "dataset": "nvidia/Open-SWE-Traces",
@@ -2706,10 +2816,10 @@
    "n": 4000,
    "steps_lo": 54,
    "steps_hi": 75,
-   "cost_share": 0.19635620407639406,
-   "cost_share_cached": 0.20660471087143092,
-   "resolve": null,
-   "resolved_per_dollar": null
+   "cost_share": 0.19653123219603635,
+   "cost_share_cached": 0.20637783820802844,
+   "resolve": 0.5059625212947189,
+   "resolved_per_dollar": 0.11582208907160614
   },
   {
    "dataset": "nvidia/Open-SWE-Traces",
@@ -2720,10 +2830,10 @@
    "n": 4000,
    "steps_lo": 75,
    "steps_hi": 274,
-   "cost_share": 0.5929488107307739,
-   "cost_share_cached": 0.5297355540138339,
-   "resolve": null,
-   "resolved_per_dollar": null
+   "cost_share": 0.5941445490158729,
+   "cost_share_cached": 0.5334631115849497,
+   "resolve": 0.3973134328358209,
+   "resolved_per_dollar": 0.02861549150255897
   },
   {
    "dataset": "nvidia/SWE-Hero-openhands-trajectories",
@@ -2734,8 +2844,8 @@
    "n": 4000,
    "steps_lo": 25,
    "steps_hi": 48,
-   "cost_share": 0.11103508639271688,
-   "cost_share_cached": 0.12655307866744903,
+   "cost_share": 0.11103508639271685,
+   "cost_share_cached": 0.12655307866744897,
    "resolve": null,
    "resolved_per_dollar": null
   },
@@ -2748,8 +2858,8 @@
    "n": 4000,
    "steps_lo": 48,
    "steps_hi": 56,
-   "cost_share": 0.14794620872284187,
-   "cost_share_cached": 0.158167787741502,
+   "cost_share": 0.1480175948716941,
+   "cost_share_cached": 0.1582317928439004,
    "resolve": null,
    "resolved_per_dollar": null
   },
@@ -2762,8 +2872,8 @@
    "n": 4000,
    "steps_lo": 56,
    "steps_hi": 64,
-   "cost_share": 0.1839930106658054,
-   "cost_share_cached": 0.18831884269674756,
+   "cost_share": 0.18406925348144945,
+   "cost_share_cached": 0.18838008227689276,
    "resolve": null,
    "resolved_per_dollar": null
   },
@@ -2776,8 +2886,8 @@
    "n": 4000,
    "steps_lo": 64,
    "steps_hi": 76,
-   "cost_share": 0.2304786183972204,
-   "cost_share_cached": 0.22560187592351036,
+   "cost_share": 0.23007061800857354,
+   "cost_share_cached": 0.22523247995550796,
    "resolve": null,
    "resolved_per_dollar": null
   },
@@ -2790,8 +2900,8 @@
    "n": 4000,
    "steps_lo": 76,
    "steps_hi": 100,
-   "cost_share": 0.32654707582141546,
-   "cost_share_cached": 0.30135841497079163,
+   "cost_share": 0.3268074472455664,
+   "cost_share_cached": 0.30160256625625015,
    "resolve": null,
    "resolved_per_dollar": null
   },
@@ -2804,8 +2914,8 @@
    "n": 4000,
    "steps_lo": 10,
    "steps_hi": 22,
-   "cost_share": 0.06629900030297448,
-   "cost_share_cached": 0.0911083632081886,
+   "cost_share": 0.06625548959296113,
+   "cost_share_cached": 0.09102897611851254,
    "resolve": null,
    "resolved_per_dollar": null
   },
@@ -2818,8 +2928,8 @@
    "n": 4000,
    "steps_lo": 22,
    "steps_hi": 28,
-   "cost_share": 0.11142138382724073,
-   "cost_share_cached": 0.13248244090949413,
+   "cost_share": 0.11142859440520936,
+   "cost_share_cached": 0.1325703456421458,
    "resolve": null,
    "resolved_per_dollar": null
   },
@@ -2832,8 +2942,8 @@
    "n": 4000,
    "steps_lo": 28,
    "steps_hi": 34,
-   "cost_share": 0.1601178766290414,
-   "cost_share_cached": 0.1733710334631612,
+   "cost_share": 0.16002709599851175,
+   "cost_share_cached": 0.1732120486485931,
    "resolve": null,
    "resolved_per_dollar": null
   },
@@ -2846,8 +2956,8 @@
    "n": 4000,
    "steps_lo": 34,
    "steps_hi": 43,
-   "cost_share": 0.23563654282807558,
-   "cost_share_cached": 0.23369962398055238,
+   "cost_share": 0.23538177667708174,
+   "cost_share_cached": 0.23348827846616013,
    "resolve": null,
    "resolved_per_dollar": null
   },
@@ -2860,8 +2970,8 @@
    "n": 4000,
    "steps_lo": 43,
    "steps_hi": 100,
-   "cost_share": 0.4265251964126691,
-   "cost_share_cached": 0.36933853843860365,
+   "cost_share": 0.42690704332623625,
+   "cost_share_cached": 0.3697003511245893,
    "resolve": null,
    "resolved_per_dollar": null
   },
@@ -2874,8 +2984,8 @@
    "n": 4000,
    "steps_lo": 1,
    "steps_hi": 2,
-   "cost_share": 0.035176375282733166,
-   "cost_share_cached": 0.05509164880239098,
+   "cost_share": 0.03439267967594731,
+   "cost_share_cached": 0.05384539715860789,
    "resolve": null,
    "resolved_per_dollar": null
   },
@@ -2888,8 +2998,8 @@
    "n": 4000,
    "steps_lo": 2,
    "steps_hi": 4,
-   "cost_share": 0.045928803225120274,
-   "cost_share_cached": 0.06664665221970073,
+   "cost_share": 0.04666575000367574,
+   "cost_share_cached": 0.0678720182125067,
    "resolve": null,
    "resolved_per_dollar": null
   },
@@ -2902,8 +3012,8 @@
    "n": 4000,
    "steps_lo": 4,
    "steps_hi": 7,
-   "cost_share": 0.14629570844299805,
-   "cost_share_cached": 0.16246979831851943,
+   "cost_share": 0.14608085326556777,
+   "cost_share_cached": 0.16228231687818595,
    "resolve": null,
    "resolved_per_dollar": null
   },
@@ -2916,8 +3026,8 @@
    "n": 4000,
    "steps_lo": 7,
    "steps_hi": 8,
-   "cost_share": 0.3820221126566866,
-   "cost_share_cached": 0.35469844282502777,
+   "cost_share": 0.3769799762691188,
+   "cost_share_cached": 0.3505768230914658,
    "resolve": null,
    "resolved_per_dollar": null
   },
@@ -2930,8 +3040,8 @@
    "n": 4000,
    "steps_lo": 8,
    "steps_hi": 8,
-   "cost_share": 0.390577000392461,
-   "cost_share_cached": 0.3610934578343606,
+   "cost_share": 0.39588074078569024,
+   "cost_share_cached": 0.365423444659234,
    "resolve": null,
    "resolved_per_dollar": null
   },
@@ -2944,10 +3054,10 @@
    "n": 4000,
    "steps_lo": 3,
    "steps_hi": 19,
-   "cost_share": 0.04089161286104404,
-   "cost_share_cached": 0.06276851976138968,
-   "resolve": 0.30275,
-   "resolved_per_dollar": 2.0599412313905776
+   "cost_share": 0.04063054063703506,
+   "cost_share_cached": 0.062488223587698934,
+   "resolve": 0.30325,
+   "resolved_per_dollar": 2.076606020046952
   },
   {
    "dataset": "ricdomolm/mini-coder-trajs-400k",
@@ -2958,10 +3068,10 @@
    "n": 4000,
    "steps_lo": 19,
    "steps_hi": 26,
-   "cost_share": 0.0815603198024253,
-   "cost_share_cached": 0.10542214212852577,
-   "resolve": 0.252,
-   "resolved_per_dollar": 0.8596596445257744
+   "cost_share": 0.08133726502351919,
+   "cost_share_cached": 0.10528845115589199,
+   "resolve": 0.2485,
+   "resolved_per_dollar": 0.8500465875985495
   },
   {
    "dataset": "ricdomolm/mini-coder-trajs-400k",
@@ -2972,10 +3082,10 @@
    "n": 4000,
    "steps_lo": 26,
    "steps_hi": 34,
-   "cost_share": 0.13729110464129812,
-   "cost_share_cached": 0.15666765220195547,
-   "resolve": 0.1835,
-   "resolved_per_dollar": 0.37187637455089956
+   "cost_share": 0.1375585385220814,
+   "cost_share_cached": 0.15683006351887452,
+   "resolve": 0.18625,
+   "resolved_per_dollar": 0.376716488008771
   },
   {
    "dataset": "ricdomolm/mini-coder-trajs-400k",
@@ -2986,10 +3096,10 @@
    "n": 4000,
    "steps_lo": 34,
    "steps_hi": 48,
-   "cost_share": 0.2337954527073445,
-   "cost_share_cached": 0.23729372801887672,
-   "resolve": 0.136,
-   "resolved_per_dollar": 0.16184816042390143
+   "cost_share": 0.23397079792742295,
+   "cost_share_cached": 0.23753484900273822,
+   "resolve": 0.13625,
+   "resolved_per_dollar": 0.16202452431740186
   },
   {
    "dataset": "ricdomolm/mini-coder-trajs-400k",
@@ -3000,10 +3110,10 @@
    "n": 4000,
    "steps_lo": 48,
    "steps_hi": 256,
-   "cost_share": 0.5064615099878879,
-   "cost_share_cached": 0.43784795788925207,
+   "cost_share": 0.5065028578899415,
+   "cost_share_cached": 0.4378584127347966,
    "resolve": 0.09225,
-   "resolved_per_dollar": 0.05067862794795541
+   "resolved_per_dollar": 0.050674605333309336
   },
   {
    "dataset": "thoughtworks/agentic-coding-trajectories",
@@ -3014,8 +3124,8 @@
    "n": 1000,
    "steps_lo": 9,
    "steps_hi": 17,
-   "cost_share": 0.05241431974199405,
-   "cost_share_cached": 0.07823580658770607,
+   "cost_share": 0.05158332792506828,
+   "cost_share_cached": 0.07699668921348742,
    "resolve": null,
    "resolved_per_dollar": null
   },
@@ -3028,8 +3138,8 @@
    "n": 1000,
    "steps_lo": 17,
    "steps_hi": 22,
-   "cost_share": 0.09133363939628052,
-   "cost_share_cached": 0.11778702157992152,
+   "cost_share": 0.09010411601328985,
+   "cost_share_cached": 0.11686540411382419,
    "resolve": null,
    "resolved_per_dollar": null
   },
@@ -3042,8 +3152,8 @@
    "n": 1000,
    "steps_lo": 22,
    "steps_hi": 27,
-   "cost_share": 0.14109819971506943,
-   "cost_share_cached": 0.16338394029838516,
+   "cost_share": 0.14100842356173898,
+   "cost_share_cached": 0.1630643403121717,
    "resolve": null,
    "resolved_per_dollar": null
   },
@@ -3056,8 +3166,8 @@
    "n": 1000,
    "steps_lo": 27,
    "steps_hi": 36,
-   "cost_share": 0.22201715673320324,
-   "cost_share_cached": 0.22635624831665288,
+   "cost_share": 0.22418693346041868,
+   "cost_share_cached": 0.22884605412187872,
    "resolve": null,
    "resolved_per_dollar": null
   },
@@ -3070,8 +3180,8 @@
    "n": 1000,
    "steps_lo": 36,
    "steps_hi": 83,
-   "cost_share": 0.49313668441345204,
-   "cost_share_cached": 0.4142369832173338,
+   "cost_share": 0.4931171990394843,
+   "cost_share_cached": 0.4142275122386388,
    "resolve": null,
    "resolved_per_dollar": null
   },
@@ -3084,8 +3194,8 @@
    "n": 1000,
    "steps_lo": 26,
    "steps_hi": 48,
-   "cost_share": 0.10085966514281111,
-   "cost_share_cached": 0.11551506422664433,
+   "cost_share": 0.10085964400445979,
+   "cost_share_cached": 0.11551504326231483,
    "resolve": 0.681,
    "resolved_per_dollar": 0.2696945723818798
   },
@@ -3098,10 +3208,10 @@
    "n": 1000,
    "steps_lo": 48,
    "steps_hi": 56,
-   "cost_share": 0.13973863503615794,
-   "cost_share_cached": 0.15047470974079913,
+   "cost_share": 0.1397386921465577,
+   "cost_share_cached": 0.15047475870061974,
    "resolve": 0.582,
-   "resolved_per_dollar": 0.1663600737688932
+   "resolved_per_dollar": 0.1663599709124565
   },
   {
    "dataset": "thoughtworks/agentic-coding-trajectories",
@@ -3112,10 +3222,10 @@
    "n": 1000,
    "steps_lo": 56,
    "steps_hi": 66,
-   "cost_share": 0.17733133709456125,
-   "cost_share_cached": 0.18293546631248614,
+   "cost_share": 0.17733141664308028,
+   "cost_share_cached": 0.1829355331881648,
    "resolve": 0.474,
-   "resolved_per_dollar": 0.10676661391224655
+   "resolved_per_dollar": 0.10676654364183083
   },
   {
    "dataset": "thoughtworks/agentic-coding-trajectories",
@@ -3126,8 +3236,8 @@
    "n": 1000,
    "steps_lo": 66,
    "steps_hi": 81,
-   "cost_share": 0.23430645049079843,
-   "cost_share_cached": 0.23039834266465567,
+   "cost_share": 0.2343064013844281,
+   "cost_share_cached": 0.23039830085065677,
    "resolve": 0.437,
    "resolved_per_dollar": 0.07449717571668825
   },
@@ -3140,10 +3250,10 @@
    "n": 1000,
    "steps_lo": 81,
    "steps_hi": 100,
-   "cost_share": 0.34776391223567105,
-   "cost_share_cached": 0.3206764170554152,
+   "cost_share": 0.3477638458214739,
+   "cost_share_cached": 0.3206763639982444,
    "resolve": 0.258,
-   "resolved_per_dollar": 0.029633149322892873
+   "resolved_per_dollar": 0.029633148771512983
   },
   {
    "dataset": "thoughtworks/agentic-coding-trajectories",
@@ -3154,10 +3264,10 @@
    "n": 1000,
    "steps_lo": 3,
    "steps_hi": 18,
-   "cost_share": 0.041871676013544246,
-   "cost_share_cached": 0.06155340754387525,
-   "resolve": 0.629,
-   "resolved_per_dollar": 1.9054851495454452
+   "cost_share": 0.04272266295646244,
+   "cost_share_cached": 0.06253012974983699,
+   "resolve": 0.632,
+   "resolved_per_dollar": 1.876437187216739
   },
   {
    "dataset": "thoughtworks/agentic-coding-trajectories",
@@ -3168,10 +3278,10 @@
    "n": 1000,
    "steps_lo": 18,
    "steps_hi": 24,
-   "cost_share": 0.07946943690407009,
-   "cost_share_cached": 0.10084567759968685,
-   "resolve": 0.542,
-   "resolved_per_dollar": 0.8651161483632112
+   "cost_share": 0.08235976176367327,
+   "cost_share_cached": 0.10411202872254162,
+   "resolve": 0.53,
+   "resolved_per_dollar": 0.8162741733974938
   },
   {
    "dataset": "thoughtworks/agentic-coding-trajectories",
@@ -3182,10 +3292,10 @@
    "n": 1000,
    "steps_lo": 24,
    "steps_hi": 31,
-   "cost_share": 0.1307120538922195,
-   "cost_share_cached": 0.148995166193297,
-   "resolve": 0.466,
-   "resolved_per_dollar": 0.4522156059553206
+   "cost_share": 0.12751371199037853,
+   "cost_share_cached": 0.14559613786338557,
+   "resolve": 0.468,
+   "resolved_per_dollar": 0.4655477505016197
   },
   {
    "dataset": "thoughtworks/agentic-coding-trajectories",
@@ -3196,10 +3306,10 @@
    "n": 1000,
    "steps_lo": 31,
    "steps_hi": 45,
-   "cost_share": 0.22382675330708496,
-   "cost_share_cached": 0.22912925854828511,
-   "resolve": 0.344,
-   "resolved_per_dollar": 0.19494931580460623
+   "cost_share": 0.22327270103672972,
+   "cost_share_cached": 0.22827192663284174,
+   "resolve": 0.351,
+   "resolved_per_dollar": 0.1994099194603277
   },
   {
    "dataset": "thoughtworks/agentic-coding-trajectories",
@@ -3210,10 +3320,10 @@
    "n": 1000,
    "steps_lo": 45,
    "steps_hi": 120,
-   "cost_share": 0.5241200798830811,
-   "cost_share_cached": 0.4594764901148562,
+   "cost_share": 0.5241311622527557,
+   "cost_share_cached": 0.45948977703139454,
    "resolve": 0.211,
-   "resolved_per_dollar": 0.05106542193263134
+   "resolved_per_dollar": 0.05106434219167296
   }
  ],
  "exits": [
@@ -3579,14 +3689,7 @@
    "model": "qwen3-coder-30b",
    "terminal": "submitted",
    "exit_status": "",
-   "n": 19512
-  },
-  {
-   "dataset": "ricdomolm/mini-coder-trajs-400k",
-   "model": "qwen3-coder-30b",
-   "terminal": "cutoff",
-   "exit_status": "",
-   "n": 480
+   "n": 19984
   },
   {
    "dataset": "ricdomolm/mini-coder-trajs-400k",
@@ -3596,18 +3699,18 @@
    "n": 8
   },
   {
-   "dataset": "thoughtworks/agentic-coding-trajectories",
-   "model": "kwai-klear-swe-smith-mini",
-   "terminal": "submitted",
+   "dataset": "ricdomolm/mini-coder-trajs-400k",
+   "model": "qwen3-coder-30b",
+   "terminal": "cutoff",
    "exit_status": "",
-   "n": 4472
+   "n": 8
   },
   {
    "dataset": "thoughtworks/agentic-coding-trajectories",
    "model": "kwai-klear-swe-smith-mini",
-   "terminal": "cutoff",
+   "terminal": "submitted",
    "exit_status": "",
-   "n": 528
+   "n": 5000
   },
   {
    "dataset": "thoughtworks/agentic-coding-trajectories",

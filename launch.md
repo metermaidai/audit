@@ -1,6 +1,6 @@
 # Launch copy — paste-ready
 
-Every number below is from `report/index.json` (edition 1, 341,054 runs). Method, caveats and
+Every number below is from `report/index.json` (edition 1.1, 341,054 runs). Method, caveats and
 retractions: [`report/notes.md`](report/notes.md). Cost is estimated (chars/4 at Sonnet-class
 rates) — quote percentages, never dollars.
 
@@ -46,9 +46,9 @@ the shape of the result is not subtle, and the capped scaffold's runs are *short
 **3. The money is in run length, and the long tail buys almost nothing.** Split each group's runs
 into five equal-count buckets by step count. The longest bucket takes 40% of estimated spend
 across the whole set (21–72% by group, median 50%) and is the worst bucket per task solved:
-resolved-per-dollar is lowest in the longest quintile in 13 of the 15 groups that carry resolve
-labels, by 8× to 285×. Resolve rate itself falls from the shortest to the longest quintile in 14
-of 15. Whatever else you tune, measure what the marginal step buys before you set a cap: that is
+resolved-per-dollar is lowest in the longest quintile in 16 of the 18 groups that carry resolve
+labels, by 5× to 294×. Resolve rate itself falls from the shortest to the longest quintile in 17
+of 18. Whatever else you tune, measure what the marginal step buys before you set a cap: that is
 where the money sits, and a cap still pays for every step up to the cap, so the cap itself
 needs its own test.
 
@@ -61,7 +61,7 @@ populations already in the set; don't pool it with them. Full list in
 **Retracted from the pilot.** An earlier 4,000-run version of this reported that runs tripping any
 detector resolved at ~half the rate of clean runs in every group, and pitched it as a mid-run kill
 signal. At full scale that holds only for weak models (0.16–0.25× on Llama and gpt-4o) and
-reverses on SWE-smith Claude 3.5 Sonnet (1.10–1.22×) and mini-coder-trajs-400k (1.18×) — 15 of 20
+reverses on SWE-smith Claude 3.5 Sonnet (1.10–1.22×) and mini-coder-trajs-400k (1.18×) — 18 of 23
 groups worse when flagged, 5 better. Don't ship a kill switch on it without measuring your own
 traffic.
 
@@ -89,7 +89,7 @@ dataset/config/split). Findings:
   0.1% of runs carry a >20k-char observation under mini-swe-agent, 50% under OpenHands, 55% under
   SWE-agent. The capped scaffold's runs are shorter, not longer.
 - The real money is run length. The longest fifth of runs takes 40% of estimated spend and is the
-  worst bucket per task solved in 13 of 15 groups with resolve labels — by 8× to 285×.
+  worst bucket per task solved in 16 of 18 groups with resolve labels — by 5× to 294×.
 
 An earlier 4,000-run version of this claimed waste predicts failure everywhere. It doesn't: at
 full scale that only holds on weak models and reverses on Claude 3.5 SWE-smith. That retraction
@@ -120,7 +120,7 @@ runs per dataset/config/split:
 - Context bloat is the scaffold's fault, not the model's. Same Open-SWE v1.1 traces:
   mini-swe-agent 0.1% of runs with a >20k-char observation, OpenHands 50%, SWE-agent 55%.
 - Run length dominates. The longest quintile takes 21–72% of a group's estimated spend (median
-  50%) and returns 8–285× fewer resolved tasks per dollar than the shortest.
+  50%) and returns 5–294× fewer resolved tasks per dollar than the shortest.
 
 Also a retraction: an earlier 4,000-run cut of this said runs tripping any detector resolve at
 half the rate, everywhere. At 341k that's true for weak models and *reverses* on Claude 3.5
@@ -148,8 +148,8 @@ scaffolds: 0.1% of runs carry a >20k-char observation under mini-swe-agent, 50% 
 55% under SWE-agent. The capped one has *shorter* runs.
 
 5/ Here's the money. Split each group's runs into fifths by step count. The longest fifth takes
-40% of estimated spend across the set (up to 72% in a group) and returns 8–285× fewer resolved
-tasks per dollar than the shortest fifth. 13 of 15 groups, same direction.
+40% of estimated spend across the set (up to 72% in a group) and returns 5–294× fewer resolved
+tasks per dollar than the shortest fifth. 16 of 18 groups, same direction.
 
 6/ A correction to my own earlier post: on 4,000 runs I said runs tripping any detector resolve at
 half the rate, in every group. At 341k it only holds on weak models (0.16–0.25×) and reverses on
@@ -165,6 +165,6 @@ send me the JSON, I'll send back the fixes. [repo link]
 
 Ran waste detectors over 341,054 public agent runs. Loops are a solved problem (14% of runs on
 2024 Llama agents, 0.4% on Claude 3.7), mechanical waste is only 4% of spend, and the actual money
-is run length — the longest fifth of runs takes 40% of estimated spend and returns up to 285×
+is run length — the longest fifth of runs takes 40% of estimated spend and returns up to 294×
 fewer resolved tasks per dollar. Open tools + reproduce steps here: [repo link]. If you run the
 spend audit on your org with --anon and DM me the JSON I'll send back the top fixes.
