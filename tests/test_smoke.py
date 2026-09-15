@@ -23,7 +23,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SCRIPTS = ["metermaid_audit.py", "trajectory_audit.py", "pipeline.py", "benchmark.py",
-           "hf_pull.py", "hf_batch.py", "download_logs.py", "share.py", "schema.py"]
+           "hf_pull.py", "hf_batch.py", "download_logs.py", "share.py", "schema.py", "compare.py"]
 
 
 def load(name: str):
@@ -560,6 +560,123 @@ class TestTasksAndAttempts(unittest.TestCase):
         self.assertEqual(tasks[0].restart_cost, 2.0)
         self.assertEqual(sc.build_tasks([mk(1, "failure", 1.0), mk(2, "failure", 2.0)])[0].outcome, "failure")
         self.assertEqual(sc.common_prefix(["a", "b", "c"], ["a", "b", "x"]), 2)
+
+
+def task_rows(n: int, cost: float = 1.0, success_every: int = 2, outcome_known: bool = True, attempts: int = 1,
+              start: int = 0, jitter: float = 0.0) -> dict[str, dict]:
+    """n tasks with deterministic costs; every success_every-th task succeeds."""
+    rows = {}
+    for i in range(start, start + n):
+        c = cost * (1 + jitter * ((i * 7) % 5) / 5)
+        rows[f"t{i}"] = {"task_id": f"t{i}", "workflow": "w", "attempts": [f"t{i}-a"], "attempts_n": attempts,
+                         "total_cost": c, "first_attempt_cost": c, "restart_cost": 0.0, "redone_steps": 0,
+                         "outcome": ("success" if i % success_every == 0 else "failure") if outcome_known else "unknown",
+                         "outcome_source": "resolved" if outcome_known else None}
+    return rows
+
+
+class TestCompare(unittest.TestCase):
+    """compare.py: baseline against candidates and the combined arm, on paired tasks."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.cmp = load("compare")
+
+    def _run(self, baseline, arms, combined=None, overhead=None, tol=2.0, min_tasks=20):
+        return self.cmp.compare(baseline, arms, combined, overhead or {}, tol, min_tasks)
+
+    def test_paired_cohort_and_coverage(self):
+        base = task_rows(30, jitter=0.5)
+        cand = {k: dict(v, total_cost=v["total_cost"] * 0.8) for k, v in list(base.items())[:25]}
+        cand.update(task_rows(3, start=100))
+        res = self._run(base, {"c": cand})
+        self.assertEqual(res["coverage"]["paired_tasks"], 25)
+        self.assertEqual(res["coverage"]["arms"]["c"]["not_in_baseline"], 3)
+        self.assertEqual(res["baseline"]["tasks"], 25, "the baseline is measured on the paired cohort too")
+
+    def test_uniform_saving_with_equal_quality_is_verified(self):
+        base = task_rows(40, jitter=0.5)
+        cand = {k: dict(v, total_cost=v["total_cost"] * 0.8) for k, v in base.items()}
+        r = self._run(base, {"c": cand})["arms"]["c"]
+        self.assertEqual(r["status"], "verified", r["reasons"])
+        self.assertAlmostEqual(r["cost_change"], -0.2)
+        self.assertAlmostEqual(r["net_saving"], r["gross_saving"])
+        ci = r["cost_change_interval_90"]
+        self.assertLess(ci["p95"], 0, "every task got cheaper, so the interval must exclude zero")
+        self.assertEqual(r["success_rate_change_pp"], 0.0)
+
+    def test_quality_regression_is_rejected_however_much_it_saves(self):
+        base = task_rows(40, success_every=2)          # 50% success
+        cand = {k: dict(v, total_cost=0.1, outcome="failure") for k, v in base.items()}
+        r = self._run(base, {"c": cand})["arms"]["c"]
+        self.assertEqual(r["status"], "rejected")
+        self.assertTrue(any("success rate fell" in x for x in r["reasons"]))
+
+    def test_overhead_can_erase_a_saving(self):
+        base = task_rows(40)
+        cand = {k: dict(v, total_cost=0.9) for k, v in base.items()}   # gross saving 4.0
+        r = self._run(base, {"c": cand}, overhead={"c": 5.0})["arms"]["c"]
+        self.assertEqual(r["status"], "rejected")
+        self.assertAlmostEqual(r["net_saving"], -1.0)
+        self.assertAlmostEqual(r["gross_saving"], 4.0)
+
+    def test_small_cohort_and_unknown_outcomes_are_inconclusive(self):
+        base = task_rows(10)
+        cand = {k: dict(v, total_cost=0.5) for k, v in base.items()}
+        self.assertEqual(self._run(base, {"c": cand})["arms"]["c"]["status"], "inconclusive")
+        base = task_rows(40)
+        cand = {k: dict(v, total_cost=0.5, outcome="unknown", outcome_source=None) for k, v in base.items()}
+        r = self._run(base, {"c": cand})["arms"]["c"]
+        self.assertEqual(r["status"], "inconclusive")
+        self.assertEqual(r["unknown"], 40, "unknown outcomes are preserved, not turned into failures")
+        self.assertIsNone(r["success_rate"])
+        self.assertIsNone(r["cost_per_successful_task"])
+
+    def test_no_successes_gives_undefined_ratio_not_zero(self):
+        base = task_rows(40, success_every=1000, start=1)
+        r = self._run(base, {"c": dict(base)})
+        self.assertIsNone(r["baseline"]["cost_per_successful_task"])
+        self.assertEqual(r["baseline"]["success_rate"], 0.0)
+
+    def test_combined_arm_is_the_claim_and_individual_fixes_are_never_summed(self):
+        base = task_rows(40, jitter=0.5)
+        a = {k: dict(v, total_cost=v["total_cost"] * 0.8) for k, v in base.items()}
+        b = {k: dict(v, total_cost=v["total_cost"] * 0.8) for k, v in base.items()}
+        both = {k: dict(v, total_cost=v["total_cost"] * 0.7) for k, v in base.items()}   # overlap: less than 0.6
+        res = self._run(base, {"a": a, "b": b, "both": both}, combined="both")
+        h = res["headline"]
+        self.assertEqual(h["basis"], "the combined arm, measured")
+        self.assertAlmostEqual(h["net_saving"], res["arms"]["both"]["net_saving"])
+        self.assertAlmostEqual(h["naive_sum_of_individual_fixes"], res["arms"]["a"]["net_saving"] + res["arms"]["b"]["net_saving"])
+        self.assertGreater(h["naive_sum_of_individual_fixes"], h["net_saving"], "the fixture's fixes overlap")
+        self.assertIn("never the claim", h["note"])
+        # two candidates and no combined arm: no combined number is offered
+        res = self._run(base, {"a": a, "b": b})
+        self.assertIsNone(res["headline"]["net_saving"])
+        self.assertEqual(res["headline"]["status"], "inconclusive")
+        self.assertIn("cannot be added", res["headline"]["note"])
+
+    def test_cli_writes_report_from_audit_directories(self):
+        def write_arm(d: Path, rows: dict):
+            d.mkdir(parents=True)
+            (d / "tasks.jsonl").write_text("\n".join(json.dumps(r) for r in rows.values()), encoding="utf-8")
+        with tempfile.TemporaryDirectory() as td:
+            td = Path(td)
+            base = task_rows(30, jitter=0.5)
+            write_arm(td / "before", base)
+            write_arm(td / "cache", {k: dict(v, total_cost=v["total_cost"] * 0.9) for k, v in base.items()})
+            write_arm(td / "both", {k: dict(v, total_cost=v["total_cost"] * 0.85) for k, v in base.items()})
+            r = subprocess.run([sys.executable, str(ROOT / "compare.py"), "--baseline", str(td / "before"),
+                                "--candidate", f"cache={td / 'cache'}", "--combined", f"both={td / 'both'}",
+                                "--overhead", "cache=0.5", "--out", str(td / "cmp")], capture_output=True, text=True)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            md = (td / "cmp" / "compare.md").read_text(encoding="utf-8")
+            res = json.loads((td / "cmp" / "compare.json").read_text(encoding="utf-8"))
+        self.assertIn("| cache | candidate |", md)
+        self.assertIn("| both | combined |", md)
+        self.assertIn("not in this data", md.lower())
+        self.assertEqual(res["arms"]["cache"]["overhead"], 0.5)
+        self.assertEqual(res["headline"]["basis"], "the combined arm, measured")
 
 
 class TestComparabilityWithIndex(unittest.TestCase):
