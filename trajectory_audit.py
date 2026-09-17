@@ -362,6 +362,25 @@ class Hit:
     wasted_cost: float
     note: str
     idx: set = field(default_factory=set)   # step indices this hit covers (for de-duplication across detectors)
+    at: set = field(default_factory=set)    # step indices to report when idx must stay empty (T03: cost is not per step)
+
+
+def spans(idx) -> list[list[int]]:
+    """Sorted step indices as inclusive [start, end] ranges: {2, 3, 4, 9} -> [[2, 4], [9, 9]].
+    Every finding carries them so a scaffold author can open the exact steps a label points at."""
+    out: list[list[int]] = []
+    for i in sorted(idx):
+        if out and i == out[-1][1] + 1:
+            out[-1][1] = i
+        else:
+            out.append([i, i])
+    return out
+
+
+def finding_row(h: "Hit") -> dict:
+    return {"detector": h.detector, "traj_id": h.traj_id, "submission": h.submission,
+            "wasted_steps": h.wasted_steps, "wasted_cost": h.wasted_cost, "note": h.note,
+            "spans": spans(h.idx or h.at)}
 
 
 def norm(a: str) -> str:
@@ -411,7 +430,8 @@ def detect(t: Traj, big_obs_chars: int) -> list[Hit]:
         excess_tokens = sum((ln - big_obs_chars) // 4 * (n - i - 1) for i, ln in big)
         blended_in = (t.cost or 0) / max(t.tokens_in or 1, 1) if t.tokens_in else 0
         hits.append(Hit("T03 context bloat", t.id, t.submission, len(big), excess_tokens * blended_in,
-                        f"{len(big)} observation(s) over {big_obs_chars:,} chars; largest {max(ln for _, ln in big):,}"))
+                        f"{len(big)} observation(s) over {big_obs_chars:,} chars; largest {max(ln for _, ln in big):,}",
+                        at={i for i, _ in big}))
 
     # T06 abandoned / T07 context exhausted (agent hit the context wall; harness may have force-submitted)
     ex = (t.exit_status or "").lower()
@@ -609,7 +629,7 @@ def summarize(trajs: list[Traj], hits: list[Hit]) -> dict:
             "waste_cost": waste, "waste_share": (waste / total) if total else 0,
             "sunk_cost": sunk, "sunk_share": (sunk / total) if total else 0,
             "by_detector": {k: {"trajs": v["trajs"], "share_of_trajs": v["trajs"] / len(ts), "cost": v["cost"]} for k, v in sorted(det.items())},
-            "worst": [{k: v for k, v in asdict(h).items() if k != "idx"} for h in sorted(hs, key=lambda h: -h.wasted_cost)[:5]],
+            "worst": [finding_row(h) for h in sorted(hs, key=lambda h: -h.wasted_cost)[:5]],
             "curve": curve(ts),
         }
     total = sum(s["total_cost"] for s in subs.values())
@@ -626,13 +646,13 @@ def summarize(trajs: list[Traj], hits: list[Hit]) -> dict:
             "waste_share": (waste / total) if total else 0, "sunk_cost": sunk, "sunk_share": (sunk / total) if total else 0,
             "curve": curve(trajs),
             "tasks": {**schema.task_summary(tasks), "id_sources": id_sources},
-            "_attempts": attempts, "_tasks": tasks}
+            "_attempts": attempts, "_tasks": tasks, "_findings": [finding_row(h) for h in hits]}
 
 
 def write(res: dict, unparsed: list[str], out: Path, duplicates: list[dict] | None = None,
           evs: list[schema.Event] | None = None):
     out.mkdir(parents=True, exist_ok=True)
-    attempts, tasks = res.pop("_attempts", []), res.pop("_tasks", [])
+    attempts, tasks, findings = res.pop("_attempts", []), res.pop("_tasks", []), res.pop("_findings", [])
     res["intake"] = {
         "records_parsed": res["trajectories"],
         "files_unparsed": len(unparsed),
@@ -648,6 +668,10 @@ def write(res: dict, unparsed: list[str], out: Path, duplicates: list[dict] | No
     with (out / "tasks.jsonl").open("w", encoding="utf-8") as f:
         for t in tasks:
             f.write(json.dumps(schema.to_row(t)) + "\n")
+    # one row per finding with the exact step spans it points at; run ids inside, so it stays local
+    with (out / "findings.jsonl").open("w", encoding="utf-8") as f:
+        for row in findings:
+            f.write(json.dumps(row) + "\n")
     if evs is not None:
         with (out / "events.jsonl").open("w", encoding="utf-8") as f:
             for e in evs:

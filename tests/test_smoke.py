@@ -1037,3 +1037,125 @@ class TestClaimsLedger(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+
+
+class TestFindingSpans(unittest.TestCase):
+    """Every waste label points at exact steps, so a scaffold author can open them."""
+
+    def _loop_then_bloat(self):
+        msgs = []
+        for _ in range(4):                                   # steps 0-3: identical call after an error
+            msgs += [{"role": "assistant", "content": "ls -la"},
+                     {"role": "user", "content": "Error: command failed"}]
+        msgs += [{"role": "assistant", "content": "cat big.txt"},   # step 4: oversized observation
+                 {"role": "user", "content": "x" * 25_000}]
+        return msgs
+
+    def test_trajectory_audit_writes_findings_jsonl_with_spans(self):
+        with tempfile.TemporaryDirectory() as td:
+            res, _, out = run_traj_args(Path(td), {"r": {"messages": self._loop_then_bloat(), "exit_status": "submitted"}})
+            rows = [json.loads(l) for l in (out / "findings.jsonl").read_text(encoding="utf-8").splitlines()]
+        by = {r["detector"]: r for r in rows}
+        self.assertEqual(by["T01 tool loop"]["spans"], [[2, 3]], "third and fourth identical calls are the loop")
+        self.assertEqual(by["T02 identical retry"]["spans"], [[1, 3]])
+        self.assertEqual(by["T03 context bloat"]["spans"], [[4, 4]], "bloat keeps its position even though its cost is not per step")
+        self.assertEqual(by["T01 tool loop"]["traj_id"], "r")
+        worst = list(res["submissions"].values())[0]["worst"]
+        self.assertTrue(all("spans" in w for w in worst))
+
+    def test_spans_do_not_change_the_mechanical_waste_accounting(self):
+        """T03 now carries positions; it must still be costed as excess tokens, not as whole steps."""
+        with tempfile.TemporaryDirectory() as td:
+            res = run_traj(Path(td), {"r": {"messages": self._loop_then_bloat(), "exit_status": "submitted"}})
+        sub = list(res["submissions"].values())[0]
+        self.assertAlmostEqual(sub["waste_cost"], min(sub["total_cost"], 3 * sub["total_cost"] / 5 + sub["by_detector"]["T03 context bloat"]["cost"]), places=6)
+
+    def test_pipeline_run_carries_row_and_step_spans(self):
+        pl = load("pipeline")
+        self.assertEqual(pl.spans_str({2, 3, 4, 9}), "2-4,9")
+        self.assertEqual(pl.spans_str(set()), "")
+        feats = pl.analyze_run(pl.parse_messages(parallel_openai_turns()), None)
+        self.assertEqual(feats["bloat_at"], "1,3,5", "the second call of each parallel turn carries the oversized result")
+        self.assertEqual(feats["bloat_obs"], 3)
+        run = pl.row_to_run({"messages": parallel_openai_turns(), "instance_id": "repo__1"}, "d", None, "train", {}, 7)
+        self.assertEqual(run.row, 7)
+        self.assertTrue(run.run_id.startswith("repo__1#"))
+        self.assertEqual(run.bloat_at, feats["bloat_at"])
+
+
+@unittest.skipUnless(have("duckdb") and have("pyarrow"), "needs duckdb and pyarrow")
+class TestWithinTask(unittest.TestCase):
+    """The run-length result inside task instances, on shards that carry only edition 1.1 columns."""
+
+    def _run(self, pl, i, task, steps, resolved):
+        return pl.Run(dataset="SWE-Gym/OpenHands-Sampled-Trajectories", config="default", split="train",
+                      run_id=f"{task}#{i}", model="m", scaffold="openhands",
+                      resolved=resolved, exit_status=None, steps=steps, calls=steps,
+                      est_tokens_in=steps * 100, est_tokens_out=steps * 10, est_cost=float(steps), terminal="submitted",
+                      loop_steps=0, loop_worst=0, loop_worst_action="", retry_steps=0,
+                      bloat_obs=0, bloat_excess_tokens=0, thrash_steps=0, mech_waste_steps=0,
+                      mech_waste_cost=0.0, sunk=False, any_finding=False)
+
+    def test_longer_attempts_at_the_same_task_are_compared_inside_the_task(self):
+        pl = load("pipeline")
+        runs, i = [], 0
+        for t in range(250):                          # 250 tasks x 4 attempts; the two longer attempts fail
+            base = 10 + (t % 7) * 20                  # tasks differ a lot in length (difficulty)
+            for j in range(4):
+                runs.append(self._run(pl, i, f"task{t}", base + 5 * j, j < 2)); i += 1
+        # ids as parquet would store them from a shard without the new columns
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            pl.write_parquet(runs, tmp / "runs" / "shard.parquet")
+            with contextlib.redirect_stdout(io.StringIO()):
+                res = pl.within_task(tmp, tmp / "out")
+            md = (tmp / "out" / "within_task.md").read_text(encoding="utf-8")
+        self.assertEqual(len(res["groups"]), 1)
+        g = res["groups"][0]
+        self.assertEqual(g["tasks"], 250)
+        self.assertEqual(g["attempts"], 1000)
+        self.assertEqual(g["resolve_shorter_within_task"], 1.0)
+        self.assertEqual(g["resolve_longer_within_task"], 0.0)
+        self.assertAlmostEqual(g["within_task_gap_pp"], 100.0)
+        self.assertEqual(g["discordant_tasks"], 250)
+        self.assertEqual(g["success_was_shorter"], 1.0)
+        self.assertGreater(g["spend_share_longer_within_task"], 0.5)
+        # between-task split of the same attempts cannot reach the within-task gap: task length varies more than attempts do
+        self.assertLess(g["between_task_gap_pp"], g["within_task_gap_pp"])
+        self.assertIn("| 250 | 1,000 |", md)
+        self.assertEqual(res["coverage"][0]["multi_attempt_tasks"], 250)
+
+    def test_unique_ids_yield_no_groups_but_a_coverage_row(self):
+        pl = load("pipeline")
+        runs = [self._run(pl, i, f"row{i}", 10 + i % 5, i % 2 == 0) for i in range(300)]
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            pl.write_parquet(runs, tmp / "runs" / "shard.parquet")
+            with contextlib.redirect_stdout(io.StringIO()):
+                res = pl.within_task(tmp, tmp / "out")
+            md = (tmp / "out" / "within_task.md").read_text(encoding="utf-8")
+        self.assertEqual(res["groups"], [])
+        self.assertEqual(res["coverage"][0]["multi_attempt_tasks"], 0)
+        self.assertIn("no group has enough tasks", md)
+
+    def test_report_still_reads_shards_with_and_without_the_new_columns(self):
+        """union_by_name: an edition 1.1 shard and an edition 1.2 shard in the same data dir."""
+        pl = load("pipeline")
+        import pyarrow.parquet as pq
+        old = [self._run(pl, i, f"row{i}", 10, i % 2 == 0) for i in range(300)]
+        new = [pl.Run(**{**asdict_run(pl, r), "row": i, "loop_at": "2-3"}) for i, r in enumerate(old)]
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            pl.write_parquet(old, tmp / "runs" / "old.parquet")
+            tbl = pq.read_table(tmp / "runs" / "old.parquet").drop_columns(["row", "loop_at", "retry_at", "bloat_at"])
+            pq.write_table(tbl, tmp / "runs" / "old.parquet")          # a real edition 1.1 shard: no span columns at all
+            pl.write_parquet(new, tmp / "runs" / "new.parquet")
+            with contextlib.redirect_stdout(io.StringIO()):
+                pl.report(tmp, tmp / "out")
+            text = (tmp / "out" / "index.md").read_text(encoding="utf-8")
+        self.assertIn("600 runs", text)
+
+
+def asdict_run(pl, r):
+    from dataclasses import asdict
+    return asdict(r)

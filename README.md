@@ -75,8 +75,10 @@ Outcomes are `success`, `failure` or `unknown`, read from `resolved`, `target`, 
 `verified` or `passed`; a missing label is unknown, never failure, and the report says which field
 the outcomes came from. The Intake section counts records parsed, files not parsed, and duplicate
 attempt ids dropped. `attempts.jsonl` and `tasks.jsonl` are written next to the report; `--events`
-adds `events.jsonl` with one row per step (action, sizes and hashes, not the tool output). All of
-these stay local.
+adds `events.jsonl` with one row per step (action, sizes and hashes, not the tool output).
+`findings.jsonl` has one row per finding with `spans`, the zero-based step ranges the label points
+at (`[[2, 4], [9, 9]]`), so anyone can open the exact steps a loop, retry or oversized result was
+counted on; the five worst findings in the report carry the same field. All of these stay local.
 
 ## Compare a fix against the baseline
 
@@ -128,6 +130,28 @@ python pipeline.py report                   # -> report/index.md, report/index.j
 python pipeline.py ingest <dataset> --config <cfg> --split <split> --limit N
 python pipeline.py ingest-json samples/*.json   # parse raw rows to test a new format
 ```
+
+Every run row carries `row`, its index in the split as served, and `loop_at`, `retry_at`, `bloat_at`,
+the step indices each label was counted on as `2-4,9`, so an Index figure can be traced to the exact
+steps of the exact source row. Shards swept before these columns existed still read (the report
+unions by name); the columns fill in at the next sweep.
+
+### Run length with task difficulty held fixed
+
+```bash
+python pipeline.py within-task                # -> report/within_task.md, report/within_task.json
+python pipeline.py within-task --min-tasks 50
+```
+
+The headline curve compares long runs with short runs across different tasks, so harder tasks,
+which are longer and solved less often for good reasons, could produce it on their own. Several
+datasets carry more than one labelled attempt at the same task instance (the task id is the first
+part of `run_id`). This command marks each such attempt longer or shorter than its own task's
+median length and compares resolve rates inside tasks, prints the between-task split of the same
+attempts beside it, and for tasks with both a success and a failure says how often the success
+was the shorter attempt. It reads only columns an edition 1.1 sweep already has, so it runs on
+existing shards without re-sweeping; a coverage table says which datasets expose repeated attempts
+at all.
 
 Registered datasets, formats, and end-of-run rules live in `REGISTRY` and the parsers at the top of `pipeline.py`. Edition 1.1 covers 341,054 runs from 11 datasets — 29 dataset/model/scaffold groups, 16 model labels, 4 scaffold families. The report is in `report/`, with method, caveats and retractions in [`report/notes.md`](report/notes.md).
 
