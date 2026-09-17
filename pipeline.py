@@ -77,6 +77,21 @@ class Run:
     loop_steps: int; loop_worst: int; loop_worst_action: str
     retry_steps: int; bloat_obs: int; bloat_excess_tokens: int; thrash_steps: int
     mech_waste_steps: int; mech_waste_cost: float; sunk: bool; any_finding: bool
+    # provenance and spans (edition 1.2): the source row in its split, and the step indices each
+    # label points at as "2-4,9" so a scaffold author can open exactly those steps
+    row: int = -1
+    loop_at: str = ""; retry_at: str = ""; bloat_at: str = ""
+
+
+def spans_str(idx) -> str:
+    """{2, 3, 4, 9} -> "2-4,9". Inclusive, zero-based step indices."""
+    out: list[list[int]] = []
+    for i in sorted(idx):
+        if out and i == out[-1][1] + 1:
+            out[-1][1] = i
+        else:
+            out.append([i, i])
+    return ",".join(f"{a}-{b}" if a != b else f"{a}" for a, b in out)
 
 
 # ---------------------------------------------------------------------------
@@ -418,6 +433,7 @@ def analyze_run(steps: list[Step], exit_status: str | None, big_obs_chars: int =
                 terminal=terminal, loop_steps=len(loop_idx), loop_worst=worst_n, loop_worst_action=worst_a[:120],
                 retry_steps=len(retry_idx), bloat_obs=len(big), bloat_excess_tokens=bloat_tokens, thrash_steps=len(th_idx),
                 mech_waste_steps=len(mech_idx), mech_waste_cost=mech_cost,
+                loop_at=spans_str(loop_idx), retry_at=spans_str(retry_idx), bloat_at=spans_str(i for i, _ in big),
                 sunk=terminal in ("context_exhausted", "incomplete", "cutoff"),
                 any_finding=bool(mech_idx or big or terminal in ("context_exhausted", "incomplete", "cutoff")))
 
@@ -437,7 +453,7 @@ def row_to_run(row: dict, ds: str, cfg: str, split: str, spec: dict, idx: int) -
     rid = next((str(row[k]) for k in ("traj_id", "trajectory_id", "run_id", "session_id", "instance_id", "id") if row.get(k)), f"row{idx}")
     feats = analyze_run(steps, exit_status)
     return Run(dataset=ds, config=cfg or "default", split=split, run_id=f"{rid}#{idx}", model=str(model)[:80], scaffold=str(scaffold)[:60],
-               resolved=resolved, exit_status=exit_status, **feats)
+               resolved=resolved, exit_status=exit_status, row=idx, **feats)
 
 
 # ---------------------------------------------------------------------------
@@ -545,12 +561,13 @@ def ingest_json(paths: list[str], out: Path):
         write_parquet(runs, out / "runs" / "samples.parquet")
 
 
-def report(data: Path, out: Path):
+def connect_runs(data: Path):
+    """A DuckDB connection with the `runs` view over every shard: Open-SWE rows labelled by trace
+    version, the mechanical-waste cost, the flagged bit and the cached-pricing cost estimate."""
     duckdb = need("duckdb")
     shards = sorted((data / "runs").glob("*.parquet"))
     if not shards:
         sys.exit(f"no parquet shards in {(data / 'runs').as_posix()}/ — run `python pipeline.py sweep` (or `ingest`) first")
-    out.mkdir(parents=True, exist_ok=True)
     con = duckdb.connect()
     open_swe_case = "\n                    ".join(
         f"WHEN dataset = 'nvidia/Open-SWE-Traces' AND config = '{cfg}' THEN '{label}'"
@@ -563,6 +580,119 @@ def report(data: Path, out: Path):
                (loop_steps > 0 OR retry_steps > 0 OR bloat_obs > 0 OR sunk) AS flagged,
                ((2.0 * est_tokens_in / (steps + 1)) * {PRICE_IN} + (est_tokens_in - 2.0 * est_tokens_in / (steps + 1)) * {PRICE_IN} * 0.1 + est_tokens_out * {PRICE_OUT}) / 1e6 AS est_cost_cached
         FROM read_parquet('{(data / 'runs').as_posix()}/*.parquet', union_by_name=true)""")
+    return con
+
+
+WITHIN_TASK_MIN_TASKS = 200      # a group needs this many multi-attempt labelled tasks to be reported
+
+
+def within_task(data: Path, out: Path, min_tasks: int = WITHIN_TASK_MIN_TASKS) -> dict:
+    """The run-length result with task difficulty held fixed.
+
+    The headline curve compares long runs with short runs across different tasks, so hard tasks
+    (longer and less often solved for good reasons) could produce it on their own. Several datasets
+    carry more than one attempt at the same task instance, and the task id is the first part of
+    each run_id. For every task with two or more labelled attempts, each attempt is marked longer
+    or shorter than that task's own median length; the resolve rate of the longer attempts against
+    the shorter ones is then a comparison inside tasks, never across them. The same attempts split
+    at the group median give the between-task figure for reference. Tasks with both a success and
+    a failure add a paired check: how often the successful attempt was the shorter one.
+
+    Reads only columns edition 1.1 shards already carry, so it runs on an existing sweep."""
+    con = connect_runs(data)
+    out.mkdir(parents=True, exist_ok=True)
+    keys = "dataset, config, split, model, scaffold"
+    con.execute(f"""CREATE VIEW labelled AS
+        SELECT {keys}, split_part(run_id, '#', 1) AS task, steps, est_cost, CAST(resolved AS INT) AS ok
+        FROM runs WHERE resolved IS NOT NULL""")
+    coverage = con.execute(f"""
+        WITH t AS (SELECT {keys}, task, count(*) AS n FROM labelled GROUP BY ALL)
+        SELECT {keys}, sum(n) AS labelled_runs, count(*) AS tasks,
+               count(*) FILTER (WHERE n >= 2) AS multi_attempt_tasks,
+               sum(n) FILTER (WHERE n >= 2) AS multi_attempt_runs
+        FROM t GROUP BY ALL ORDER BY labelled_runs DESC""").fetchall()
+    ccols = [d[0] for d in con.description]
+    coverage = [dict(zip(ccols, r)) for r in coverage]
+
+    con.execute(f"""CREATE VIEW multi AS
+        WITH t AS (SELECT {keys}, task, count(*) AS n, quantile_cont(steps, 0.5) AS task_median
+                   FROM labelled GROUP BY ALL HAVING count(*) >= 2)
+        SELECT l.*, t.task_median,
+               quantile_cont(l.steps, 0.5) OVER (PARTITION BY {keys}) AS group_median
+        FROM labelled l JOIN t USING ({keys}, task)""")
+    groups = con.execute(f"""
+        WITH paired AS (
+            SELECT {keys}, task,
+                   avg(CASE WHEN ok = 1 THEN steps END) AS s_ok,
+                   avg(CASE WHEN ok = 0 THEN steps END) AS s_fail
+            FROM multi GROUP BY ALL
+            HAVING s_ok IS NOT NULL AND s_fail IS NOT NULL),
+        p AS (
+            SELECT {keys}, count(*) AS discordant_tasks,
+                   avg(CASE WHEN s_ok < s_fail THEN 1.0 WHEN s_ok > s_fail THEN 0.0 ELSE 0.5 END) AS success_was_shorter,
+                   quantile_cont(s_fail / s_ok, 0.5) AS median_fail_over_ok_length
+            FROM paired GROUP BY ALL),
+        g AS (
+            SELECT {keys},
+                   count(DISTINCT task) AS tasks, count(*) AS attempts,
+                   avg(CASE WHEN steps < task_median THEN ok END) AS resolve_shorter_within_task,
+                   avg(CASE WHEN steps > task_median THEN ok END) AS resolve_longer_within_task,
+                   sum(CASE WHEN steps > task_median THEN est_cost ELSE 0 END) / nullif(sum(est_cost), 0) AS spend_share_longer_within_task,
+                   avg(CASE WHEN steps < group_median THEN ok END) AS resolve_below_group_median,
+                   avg(CASE WHEN steps > group_median THEN ok END) AS resolve_above_group_median
+            FROM multi GROUP BY ALL)
+        SELECT g.*, p.discordant_tasks, p.success_was_shorter, p.median_fail_over_ok_length
+        FROM g LEFT JOIN p USING ({keys})
+        WHERE g.tasks >= {int(min_tasks)}
+        ORDER BY g.tasks DESC""").fetchall()
+    gcols = [d[0] for d in con.description]
+    groups = [dict(zip(gcols, r)) for r in groups]
+    for g in groups:
+        rs, rl = g["resolve_shorter_within_task"], g["resolve_longer_within_task"]
+        g["within_task_gap_pp"] = None if rs is None or rl is None else (rs - rl) * 100
+        rb, ra = g["resolve_below_group_median"], g["resolve_above_group_median"]
+        g["between_task_gap_pp"] = None if rb is None or ra is None else (rb - ra) * 100
+
+    result = {"min_tasks": min_tasks, "task_id_rule": "first part of run_id, before '#'",
+              "groups": groups, "coverage": coverage}
+    (out / "within_task.json").write_text(json.dumps(result, indent=2, default=float), encoding="utf-8")
+
+    pct = lambda v: "—" if v is None else f"{v:.0%}"
+    pp = lambda v: "—" if v is None else f"{v:+.1f}"
+    L = ["# Run length with task difficulty held fixed\n",
+         "Attempts at the same task instance, each marked longer or shorter than that task's own median length. "
+         "The within-task gap compares resolve rates inside tasks; the between-task gap splits the same attempts at "
+         "the group median and is what the headline curve measures. Paired: among tasks with both a success and a "
+         f"failure, how often the success was the shorter attempt. Groups with fewer than {min_tasks} multi-attempt tasks are not shown.\n",
+         "| dataset | config | split | model | scaffold | tasks | attempts | resolve, shorter (within task) | resolve, longer (within task) | within-task gap | between-task gap | spend on longer attempts | discordant tasks | success was shorter | fail / success length |",
+         "|---|---|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|"]
+    for g in groups:
+        ratio = "—" if g["median_fail_over_ok_length"] is None else f"{g['median_fail_over_ok_length']:.2f}×"
+        disc = "—" if g["discordant_tasks"] is None else f"{g['discordant_tasks']:,}"
+        L.append(f"| {g['dataset']} | {g['config']} | {g['split']} | {g['model']} | {g['scaffold']} | {g['tasks']:,} | {g['attempts']:,} | "
+                 f"{pct(g['resolve_shorter_within_task'])} | {pct(g['resolve_longer_within_task'])} | {pp(g['within_task_gap_pp'])} pp | "
+                 f"{pp(g['between_task_gap_pp'])} pp | {pct(g['spend_share_longer_within_task'])} | "
+                 f"{disc} | "
+                 f"{pct(g['success_was_shorter'])} | {ratio} |")
+    if not groups:
+        L.append("| (no group has enough tasks with two or more labelled attempts) | | | | | | | | | | | | | | |")
+    L.append("\n## Coverage\n")
+    L.append("Which datasets expose more than one labelled attempt per task id. A dataset whose ids are unique per row "
+             "cannot be analysed this way, whatever its size.\n")
+    L.append("| dataset | config | split | model | scaffold | labelled runs | task ids | tasks with 2+ attempts | runs in them |")
+    L.append("|---|---|---|---|---|---:|---:|---:|---:|")
+    for c in coverage:
+        L.append(f"| {c['dataset']} | {c['config']} | {c['split']} | {c['model']} | {c['scaffold']} | {int(c['labelled_runs']):,} | "
+                 f"{c['tasks']:,} | {c['multi_attempt_tasks']:,} | {int(c['multi_attempt_runs'] or 0):,} |")
+    (out / "within_task.md").write_text("\n".join(L) + "\n", encoding="utf-8")
+    shown = sum(1 for _ in groups)
+    print(f"within-task analysis: {shown} group(s) with >= {min_tasks} multi-attempt tasks -> {out / 'within_task.md'}")
+    return result
+
+
+def report(data: Path, out: Path):
+    con = connect_runs(data)
+    out.mkdir(parents=True, exist_ok=True)
     q = """
     SELECT dataset, config, split, model, scaffold,
            count(*) AS runs,
@@ -668,6 +798,9 @@ def main():
     p.add_argument("--resume", action="store_true", help="skip every dataset/config/split whose Parquet shard already exists under --out/runs")
     p = sub.add_parser("report"); p.add_argument("--data", default="data"); p.add_argument("--out", default="report")
     p = sub.add_parser("ingest-json"); p.add_argument("paths", nargs="+"); p.add_argument("--out", default="data")
+    p = sub.add_parser("within-task", help="the run-length result inside task instances: needs no re-sweep")
+    p.add_argument("--data", default="data"); p.add_argument("--out", default="report")
+    p.add_argument("--min-tasks", type=int, default=WITHIN_TASK_MIN_TASKS, help=f"multi-attempt tasks a group needs to be shown (default {WITHIN_TASK_MIN_TASKS})")
     a = ap.parse_args()
     if a.cmd == "ingest":
         ingest(a.dataset, a.config, a.split, a.limit, Path(a.out))
@@ -677,6 +810,8 @@ def main():
         report(Path(a.data), Path(a.out))
     elif a.cmd == "ingest-json":
         ingest_json([f for p in a.paths for f in glob.glob(p)], Path(a.out))
+    elif a.cmd == "within-task":
+        within_task(Path(a.data), Path(a.out), a.min_tasks)
 
 
 if __name__ == "__main__":
