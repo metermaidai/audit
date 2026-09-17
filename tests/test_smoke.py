@@ -991,7 +991,7 @@ class TestClaimsLedger(unittest.TestCase):
     """supported.json says what the tools do. Copy in this repository may not claim more.
     The website is meant to run the same check against its pages."""
 
-    COPY = ["README.md", "launch.md"]
+    COPY = ["README.md", "launch.md", "outreach.md"]
 
     @classmethod
     def setUpClass(cls):
