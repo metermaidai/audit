@@ -196,9 +196,9 @@ Qwen3-Coder-480B: under 1.3%.
 3/ Total mechanical waste across the whole set — loops, blind retries, oversized tool output —
 is 4% of estimated spend. It is not where your money is going.
 
-4/ Oversized tool output is a scaffold choice, not a model trait. Same Open-SWE v1.1 traces, three
+4/ Oversized tool output is a scaffold choice, not a model trait. Same Open-SWE v1.1 traces, 3
 scaffolds: >20k-char observations in 0.1% of runs (mini-swe-agent), 50% (OpenHands), 55%
-(SWE-agent). The capped one runs shorter, and resolves 30% vs 53%: cheaper per solve, fewer solves.
+(SWE-agent). The capped one runs shorter and resolves 30% vs 53%: cheaper per solve, fewer solves.
 
 5/ Here's the money. Split each group's runs into fifths by step count. The longest fifth takes
 40% of estimated spend across the set (up to 72% in a group) and returns 5–294× fewer resolved
